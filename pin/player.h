@@ -552,9 +552,9 @@ private:
    U64 m_lastFlipTime;
 
    // all Hitables obtained from the table's list of Editables
-   eastl::vector< Hitable* > m_vhitables;
-   eastl::vector< Hitable* > m_vHitNonTrans; // non-transparent hitables
-   eastl::vector< Hitable* > m_vHitTrans;    // transparent hitables
+   std::vector< Hitable* > m_vhitables;
+   std::vector< Hitable* > m_vHitNonTrans; // non-transparent hitables
+   std::vector< Hitable* > m_vHitTrans;    // transparent hitables
 
    int m_curAccel_x[PININ_JOYMXCNT];
    int m_curAccel_y[PININ_JOYMXCNT];

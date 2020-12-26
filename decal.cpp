@@ -538,8 +538,8 @@ void Decal::RenderObject()
 
    if (m_d.m_decaltype != DecalImage)
    {
-      pd3dDevice->basicShader->SetTechnique("basic_with_texture");
-      pd3dDevice->basicShader->SetTexture("Texture0", pd3dDevice->m_texMan.LoadTexture(m_textImg, false, false), false);
+      pd3dDevice->basicShader->SetTechnique(SHADER_TECHNIQUE_basic_with_texture);
+      pd3dDevice->basicShader->SetTexture(SHADER_Texture0, pd3dDevice->m_texMan.LoadTexture(m_textImg, false, false), false);
       pd3dDevice->basicShader->SetAlphaTestValue(-1.0f);
    }
    else
@@ -547,14 +547,14 @@ void Decal::RenderObject()
       Texture *const pin = m_ptable->GetImage(m_d.m_szImage);
       if (pin)
       {
-         pd3dDevice->basicShader->SetTechnique(!m_fBackglass ? "basic_with_texture" : "bg_decal_with_texture");
-         pd3dDevice->basicShader->SetTexture("Texture0", pin, false);
+         pd3dDevice->basicShader->SetTechnique(!m_fBackglass ? SHADER_TECHNIQUE_basic_with_texture : SHADER_TECHNIQUE_bg_decal_with_texture);
+         pd3dDevice->basicShader->SetTexture(SHADER_Texture0, pin, false);
          pd3dDevice->basicShader->SetAlphaTestValue(pin->m_alphaTestValue * (float)(1.0 / 255.0));
       }
       else
-         pd3dDevice->basicShader->SetTechnique(!m_fBackglass ? "basic_without_texture" : "bg_decal_without_texture");
+         pd3dDevice->basicShader->SetTechnique(!m_fBackglass ? SHADER_TECHNIQUE_basic_without_texture : SHADER_TECHNIQUE_bg_decal_without_texture);
    }
-   pd3dDevice->basicShader->SetBool("is_metal", mat->m_bIsMetal);
+   pd3dDevice->basicShader->SetBool(SHADER_is_metal, mat->m_bIsMetal);
 
    // Set texture to mirror, so the alpha state of the texture blends correctly to the outside
    //!!   pd3dDevice->SetTextureAddressMode(0, RenderDevice::TEX_MIRROR);
@@ -571,7 +571,7 @@ void Decal::RenderObject()
    {
       pd3dDevice->SetRenderStateDepthBias(0.0f);
       const vec4 staticColor(1.0f, 1.0f, 1.0f, 1.0f);
-      pd3dDevice->basicShader->SetVector("cBase_Alpha", &staticColor);
+      pd3dDevice->basicShader->SetVector(SHADER_cBase_Alpha, &staticColor);
    }
 
    pd3dDevice->basicShader->Begin(0);
