@@ -95,9 +95,9 @@ RenderDevice(HWND* const hwnd, const int width, const int height, const bool ful
 #ifdef ENABLE_SDL
    enum RenderStates
    {
-      ALPHABLENDENABLE = GL_BLEND,
-      ZENABLE = GL_DEPTH_TEST,
-      DEPTHBIAS = GL_POLYGON_OFFSET_FILL,
+      ALPHABLENDENABLE,
+      ZENABLE,
+      DEPTHBIAS,
       ALPHATESTENABLE,
       ALPHAREF,
       ALPHAFUNC,
@@ -111,7 +111,9 @@ RenderDevice(HWND* const hwnd, const int width, const int height, const bool ful
       SRGBWRITEENABLE,
       ZFUNC,
       ZWRITEENABLE,
-      COLORWRITEENABLE
+      COLORWRITEENABLE,
+      RENDERSTATE_COUNT,
+      RENDERSTATE_INVALID
    };
 
    enum RenderStateValue
@@ -440,7 +442,7 @@ private:
    static const DWORD TEXTURE_STATE_CACHE_SIZE = 256;
    static const DWORD TEXTURE_SAMPLER_CACHE_SIZE = 14;
 
-   eastl::map<RenderStates, DWORD> renderStateCache;          // for caching
+   DWORD renderStateCache[RENDERSTATE_COUNT];          // for caching
    DWORD textureStateCache[8][TEXTURE_STATE_CACHE_SIZE];     // dto.
    DWORD textureSamplerCache[8][TEXTURE_SAMPLER_CACHE_SIZE]; // dto.
 
