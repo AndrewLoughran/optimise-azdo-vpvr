@@ -145,6 +145,8 @@ private:
    void RenderWallsAtHeight(const bool fDrop);
    void PrepareWallsAtHeight();
    void PrepareSlingshots();
+   void MultiDrawSetup(std::vector<Hitable::DrawElementsIndirectCommand>* m_commands, std::vector<Vertex3D_NoTex2>* _allVertices, std::vector<unsigned int>* _allIndices, std::vector<Hitable::MaterialProperties>* _allMaterials, std::vector<Hitable::ObjMatrices>* _allMatrices, std::vector<Matrix3D>* _allWorldMatrices);
+   void UpdateWorldMatrix(std::vector<Matrix3D>* _allWorldMatrices);
    void GenerateMesh(eastl::vector<Vertex3D_NoTex2> &topBuf, eastl::vector<Vertex3D_NoTex2> &sideBuf, eastl::vector<WORD> &topBottomIndices, eastl::vector<WORD> &sideIndices);
 
    void FreeBuffers();
@@ -163,6 +165,7 @@ private:
    VertexBuffer *slingshotVBuffer;
    VertexBuffer *VBuffer;
    IndexBuffer *IBuffer;
+   Matrix3D surfaceWorldMatrix, slingshotWorldMatrix;
 
    PropertyPane *m_propPhysics;
 

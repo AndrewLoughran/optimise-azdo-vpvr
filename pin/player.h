@@ -609,6 +609,7 @@ private:
 
    FrameQueueLimiter m_limiter;
 
+
 public:
    void ToggleFPS();
    void InitFPS();
@@ -624,6 +625,31 @@ public:
    void CalcBallAspectRatio();
    void GetBallAspectRatio(const Ball * const pball, float &stretchX, float &stretchY, const float zHeight);
    //void DrawBallReflection(Ball *pball, const float zheight, const bool lowDetailBall);
+
+
+
+
+   GLuint              matrices_buffer = 0;
+   GLuint              indirect_draw_buffer = 0;
+   GLuint              material_buffer = 0;
+   GLuint              draw_index_buffer = 0;
+   GLuint              textureHandleBuffer = 0;
+   GLuint              multiVAO = 0, multiVBO_Vertices = 0, multiVBO_Indices = 0;
+   GLuint              debugTex = 0;
+   
+   std::vector<Hitable::DrawElementsIndirectCommand> m_commands;
+   std::vector<Vertex3D_NoTex2> _allVertices;
+   std::vector<unsigned int> _allIndices;
+   std::vector<Hitable::ObjMatrices> _allMatrices;
+   std::vector<Matrix3D> _allWorldMatrices;
+   std::vector<Hitable::MaterialProperties> _allMaterials;
+   std::vector<unsigned int> draw_index;
+
+   GLuint MAX_DRAWS = 0, ACTUAL_DRAWS = 0;
+
+   Hitable::ObjMatrices* obj_matrix_ptr = nullptr;
+   Hitable::Hitable::MaterialProperties* obj_material_ptr = nullptr;
+   Hitable::DrawElementsIndirectCommand* m_cmd_ptr = nullptr;
 
 #ifdef STEPPING
 public:

@@ -50,8 +50,8 @@ public:
 
    static ItemTypeEnum TypeFromToolID(int toolID)
    {
-      std::map<ItemTypeEnum, EditableInfo>::iterator it;
-      for (it = m_map.begin(); it != m_map.end(); ++it)
+      //std::map<ItemTypeEnum, EditableInfo>::iterator it;
+      for (auto it = m_map.begin(); it != m_map.end(); ++it)
       {
          if (it->second.toolID == toolID)
             return it->second.type;

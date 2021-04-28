@@ -45,6 +45,8 @@ public:
       m_bIsMetal = false;
       m_bOpacityActive = false;
 
+     
+
       m_fElasticity = 0.0f;
       m_fElasticityFalloff = 0.0f;
       m_fFriction = 0.0f;
@@ -105,6 +107,8 @@ public:
    COLORREF m_cClearcoat;
    bool m_bIsMetal;
    bool m_bOpacityActive;
+
+
 
    //physics
    float m_fElasticity;

@@ -600,6 +600,10 @@ void Decal::SetObjectPos()
    g_pvp->SetObjectPosCur(m_d.m_vCenter.x, m_d.m_vCenter.y);
 }
 
+void Decal::MultiDrawSetup(std::vector<DrawElementsIndirectCommand>* m_commands, std::vector<Vertex3D_NoTex2>* _allVertices, std::vector<unsigned int>* _allIndices, std::vector<MaterialProperties>* _allMaterials, std::vector<ObjMatrices>* _allMatrices)
+{
+}
+
 void Decal::MoveOffset(const float dx, const float dy)
 {
    m_d.m_vCenter.x += dx;

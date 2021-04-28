@@ -128,7 +128,6 @@
     <ClCompile Include="inc\gpuprofiler.cpp">
       <Filter>inc</Filter>
     </ClCompile>
-    <ClCompile Include="glad.c" />
     <ClCompile Include="IndexBuffer.cpp" />
     <ClCompile Include="VertexBuffer.cpp" />
     <ClCompile Include="ShaderGL.cpp" />
@@ -167,6 +166,9 @@
     <ClCompile Include="EASTL\thread_support.cpp">
       <Filter>EASTL</Filter>
     </ClCompile>
+    <ClCompile Include="gl.c" />
+    <ClCompile Include="tracy\TracyClient.cpp" />
+    <ClCompile Include="pin\hitable.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="vpinball.rc">
@@ -398,6 +400,8 @@
     <None Include="shader\SMAA.fxh">
       <Filter>shaders</Filter>
     </None>
+    <None Include="glshader\basicShaderMultiDraw.glfx" />
+    <None Include="Debug_SDL\glshader\basicShaderMultiDrawNative.vs" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="inc">
@@ -1122,6 +1126,11 @@
     <ClInclude Include="backGlass.h">
       <Filter>headers</Filter>
     </ClInclude>
+    <ClInclude Include="inc\glad\gl.h" />
+    <ClInclude Include="inc\KHR\khrplatform.h" />
+    <ClInclude Include="tracy\Tracy.hpp" />
+    <ClInclude Include="tracy\TracyOpenGL.hpp" />
+    <ClInclude Include="inc\shaderprintf.h" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="shader\BallShader.fx">

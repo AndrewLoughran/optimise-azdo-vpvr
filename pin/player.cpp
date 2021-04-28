@@ -5,6 +5,7 @@
 #include "Shader.h"
 #include "typeDefs3D.h"
 #include "captureExt.h"
+#include <tracy/TracyOpenGL.hpp>
 
 // touch defines, delete as soon as we can get rid of old compilers and use new ones that have these natively
 //#define TEST_TOUCH_WITH_MOUSE
@@ -666,7 +667,9 @@ Player::Player(bool _cameraMode) : cameraMode(_cameraMode)
 
    ballIndexBuffer = NULL;
    ballVertexBuffer = NULL;
+   #ifdef DEBUG_BALL
    m_ballDebugPoints = NULL;
+   #endif  
    m_ballTrailVertexBuffer = NULL;
    m_pFont = NULL;
    m_fMeshAsPlayfield = false;
@@ -695,6 +698,44 @@ Player::~Player()
    }
    delete g_pplayer->m_pBCTarget;
    g_pplayer->m_pBCTarget = NULL;
+
+   // delete my stuff here? resources should be released before the opengl context shuts down
+   glUnmapNamedBuffer(material_buffer);
+   glDeleteVertexArrays(1, &multiVAO);
+   glDeleteBuffers(1, &matrices_buffer);
+   glDeleteBuffers(1, &indirect_draw_buffer);
+   glDeleteBuffers(1, &material_buffer);
+   glDeleteBuffers(1, &draw_index_buffer);
+   glDeleteBuffers(1, &multiVBO_Vertices);
+   glDeleteBuffers(1, &multiVBO_Indices);
+   glDeleteTextures(1, &debugTex);
+
+   matrices_buffer = 0;
+   indirect_draw_buffer = 0;             
+   material_buffer = 0;
+   draw_index_buffer = 0;
+   //textureHandleBuffer = 0;
+   multiVAO = 0, multiVBO_Vertices = 0, multiVBO_Indices = 0;
+   debugTex = 0;
+
+   m_commands.clear();
+   _allVertices.clear();
+   _allIndices.clear();
+   _allMatrices.clear();
+   _allWorldMatrices.clear();
+   _allMaterials.clear();
+   draw_index.clear();
+
+   MAX_DRAWS = 0; 
+   ACTUAL_DRAWS = 0;
+
+   obj_matrix_ptr = nullptr;
+   obj_material_ptr = nullptr;
+   m_cmd_ptr = nullptr;
+
+   Hitable::Cleanup();
+
+
 }
 
 void Player::Shutdown()
@@ -1610,11 +1651,12 @@ HRESULT Player::Init(PinTable * const ptable, const HWND hwndProgress, const HWN
 
    // Pre-render all non-changing elements such as 
    // static walls, rails, backdrops, etc. and also static playfield reflections
+   // calls RenderSetup() on ALL Hitable objects
    InitStatic(hwndProgress);
 
    for (size_t i = 0; i < m_ptable->m_vedit.size(); ++i)
    {
-      IEditable * const pe = m_ptable->m_vedit[i];
+      IEditable * const pe = m_ptable->m_vedit.at(i);
       Hitable * const ph = pe->GetIHitable();
       if (ph)
       {
@@ -1626,6 +1668,10 @@ HRESULT Player::Init(PinTable * const ptable, const HWND hwndProgress, const HWN
       }
    }
 
+   // multidraw: these sorts were causing some render artifacts, messing with world matrix order somehow?
+   // should be irrelevant after implementing order independent transprency
+
+   /*
    material_flips = 0;
    unsigned long long m;
    if (m_vHitNonTrans.size() > 0)
@@ -1659,6 +1705,300 @@ HRESULT Player::Init(PinTable * const ptable, const HWND hwndProgress, const HWN
             m = m_vHitTrans[i]->GetMaterialID();
          }
    }
+   */
+
+
+
+// MULTI INIT STARTS HERE
+   bool shaderCompilationOkay = true;
+   m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw = new Shader(m_pin3d.m_pd3dPrimaryDevice);
+   shaderCompilationOkay = m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->Load("basicShaderMultiDraw.glfx", 0);
+   if (!shaderCompilationOkay)
+       ReportError("Fatal Error: basicShaderMultiDraw compilation failed!", -1, __FILE__, __LINE__);  
+
+
+
+   // memory safety
+   MAX_DRAWS = m_ptable->m_vedit.size();
+
+   m_commands.reserve(MAX_DRAWS);
+   _allVertices.reserve(1000000);
+   _allIndices.reserve(1000000);
+   _allMaterials.reserve(MAX_DRAWS);
+   _allMatrices.reserve(MAX_DRAWS);
+   _allWorldMatrices.reserve(MAX_DRAWS);
+   draw_index.reserve(MAX_DRAWS);
+ 
+  // /*
+   // populate every objects verts/indices/materials/matrices and all draw commands  
+   for (size_t i = 0; i < m_vHitNonTrans.size(); ++i)
+   {
+       
+       Hitable* const ph = m_vHitNonTrans.at(i);
+       if (ph)
+       {
+           // sort into proper categories
+           if (ph->HitableGetItemType() == eItemBumper || ph->HitableGetItemType() == eItemPrimitive || ph->HitableGetItemType() == eItemSurface) {
+               ph->MultiDrawSetup(&m_commands, &_allVertices, &_allIndices, &_allMaterials, &_allMatrices, &_allWorldMatrices);
+           }
+
+
+       }
+   }   
+   // /*
+   // populate every objects verts/indices/materials/matrices and all draw commands  
+   for (size_t i = 0; i < m_vHitTrans.size(); ++i)
+   {
+       
+       Hitable* const ph = m_vHitTrans.at(i);
+       if (ph)
+       {
+           // sort into proper categories
+           if (ph->HitableGetItemType() == eItemBumper || ph->HitableGetItemType() == eItemPrimitive || ph->HitableGetItemType() == eItemSurface) {
+               ph->MultiDrawSetup(&m_commands, &_allVertices, &_allIndices, &_allMaterials, &_allMatrices, &_allWorldMatrices);
+           }
+
+
+       }
+   }      
+   //*/
+   /*
+   // BUMPERS ONLY FOR DEBUGGING
+   for (size_t i = 0; i < m_vHitNonTrans.size(); ++i)
+   {
+       
+       Hitable* const ph = m_vHitNonTrans.at(i);
+       if (ph)
+       {
+           // sort into proper categories
+           if (ph->HitableGetItemType() == eItemBumper) {
+               ph->MultiDrawSetup(&m_commands, &_allVertices, &_allIndices, &_allMaterials, &_allMatrices, &_allWorldMatrices);
+           }
+
+
+       }
+   }   
+   // /*
+   // populate every objects verts/indices/materials/matrices and all draw commands  
+   for (size_t i = 0; i < m_vHitTrans.size(); ++i)
+   {
+       
+       Hitable* const ph = m_vHitTrans.at(i);
+       if (ph)
+       {
+           // sort into proper categories
+           if (ph->HitableGetItemType() == eItemBumper) {
+               ph->MultiDrawSetup(&m_commands, &_allVertices, &_allIndices, &_allMaterials, &_allMatrices, &_allWorldMatrices);
+           }
+
+
+       }
+   }   
+    */
+
+   const int matrix3dSize = sizeof(Matrix3D);
+   const int vertSize = sizeof(Vertex3D_NoTex2);
+   const int materialSize = sizeof(Hitable::MaterialProperties);
+ 
+   ACTUAL_DRAWS = m_commands.size();
+   //TOTAL_VERTS = _allVertices.size();
+
+   // init VAO, Vertices VBO, Indices VBO (with DSA) (STATIC)
+   {
+       glCreateVertexArrays(1, &multiVAO);
+
+
+       //std::vector<GLfloat> convertedVerts;
+
+
+       glCreateBuffers(1, &multiVBO_Vertices);
+       glNamedBufferStorage(multiVBO_Vertices, _allVertices.size() * sizeof(Vertex3D_NoTex2), _allVertices.data(), 0); // this data is static so flags can be set to 0
+       
+       glCreateBuffers(1, &multiVBO_Indices);
+       glNamedBufferStorage(multiVBO_Indices, _allIndices.size() * sizeof(unsigned int), _allIndices.data(), 0);
+
+       glVertexArrayVertexBuffer(multiVAO, 0, multiVBO_Vertices, 0, sizeof(Vertex3D_NoTex2));
+       glVertexArrayElementBuffer(multiVAO, multiVBO_Indices);
+
+
+
+       glVertexArrayAttribFormat(multiVAO, 0, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex3D_NoTex2, x));
+       glVertexArrayAttribFormat(multiVAO, 1, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex3D_NoTex2, nx));
+       glVertexArrayAttribFormat(multiVAO, 2, 2, GL_FLOAT, GL_FALSE, offsetof(Vertex3D_NoTex2, tu));
+       
+       glVertexArrayAttribBinding(multiVAO, 0, 0);
+       glVertexArrayAttribBinding(multiVAO, 1, 0);
+       glVertexArrayAttribBinding(multiVAO, 2, 0);
+
+       glEnableVertexArrayAttrib(multiVAO, 0);
+       glEnableVertexArrayAttrib(multiVAO, 1);
+       glEnableVertexArrayAttrib(multiVAO, 2);
+
+       // drawID BUFFER (STATIC)
+       for (unsigned int i = 0; i < ACTUAL_DRAWS; i++)
+       {
+           draw_index.push_back(i);
+       }
+
+       glCreateBuffers(1, &draw_index_buffer);
+       glNamedBufferStorage(draw_index_buffer, MAX_DRAWS * sizeof(unsigned int), draw_index.data(), 0);
+
+       glEnableVertexArrayAttrib(multiVAO, 10);
+       glVertexArrayVertexBuffer(multiVAO, 1, draw_index_buffer, 0, sizeof(unsigned int));
+       glVertexArrayBindingDivisor(multiVAO, 1, 1);
+       glVertexArrayAttribIFormat(multiVAO, 10, 1, GL_UNSIGNED_INT, 0);
+
+       glVertexArrayAttribBinding(multiVAO, 10, 1);
+
+
+       glBindVertexArray(0);
+   }
+
+   // INDIRECT DRAW BUFFER (for holding all the multidraw commands) (DYNAMIC)
+   {
+       glCreateBuffers(1, &indirect_draw_buffer);
+
+       glNamedBufferStorage(indirect_draw_buffer,
+           MAX_DRAWS * sizeof(Hitable::DrawElementsIndirectCommand),
+           nullptr,
+           GL_DYNAMIC_STORAGE_BIT);
+
+       //m_cmd_ptr = (Hitable::DrawElementsIndirectCommand*)
+       //    glMapNamedBufferRange(indirect_draw_buffer,
+       //        0,
+       //        MAX_DRAWS * sizeof(Hitable::DrawElementsIndirectCommand),
+       //        GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+
+       //memcpy(m_cmd_ptr, &*m_commands.begin(), sizeof(Hitable::DrawElementsIndirectCommand) * MAX_DRAWS);
+       //glUnmapNamedBuffer(indirect_draw_buffer); // map is not used beyond init currently as draw commands are static throughout runtime (we draw everything every frame)
+
+       glNamedBufferSubData(indirect_draw_buffer, 0, sizeof(Hitable::DrawElementsIndirectCommand) * MAX_DRAWS, m_commands.data());
+
+   }
+
+   // MATRICES BUFFER (DYNAMIC)
+   {
+       
+       glCreateBuffers(1, &matrices_buffer);
+       //glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, matrices_buffer);
+       glNamedBufferStorage(matrices_buffer,
+           MAX_DRAWS * sizeof(Hitable::ObjMatrices),
+           nullptr,
+           GL_DYNAMIC_STORAGE_BIT);
+
+       glNamedBufferSubData(matrices_buffer, 0, sizeof(Hitable::ObjMatrices) * MAX_DRAWS, _allMatrices.data());
+       
+
+       //obj_mat_ptr = (Hitable::ObjMatrices*)
+       //    glMapNamedBufferRange(matrices_buffer,
+       //        0,
+       //        MAX_DRAWS * sizeof(Hitable::ObjMatrices),
+       //        GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+
+
+       //memcpy(obj_mat_ptr, &*_allMatrices.begin(), sizeof(Hitable::ObjMatrices)* MAX_DRAWS);
+
+       //glUnmapNamedBuffer(matrices_buffer);
+       
+      
+       
+       //glBindBufferBase(GL_UNIFORM_BUFFER, 0, matrices_buffer);
+
+
+   }
+
+   // Materials (and texture handles) Buffer (STATIC)
+   {
+
+       glCreateBuffers(1, &material_buffer);
+       //glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, material_buffer);
+       //glNamedBufferStorage(material_buffer, MAX_DRAWS * sizeof(Hitable::MaterialProperties), 0, GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT); //GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT);
+       glNamedBufferStorage(material_buffer, MAX_DRAWS * sizeof(Hitable::MaterialProperties), _allMaterials.data(), 0); // static data flags
+
+       //glNamedBufferSubData(material_buffer, 0, sizeof(Hitable::MaterialProperties)* ACTUAL_DRAWS, _allMaterials.data());
+       /*
+       obj_material_ptr = static_cast<Hitable::MaterialProperties*>(
+            glMapNamedBufferRange(material_buffer,
+            0,
+            MAX_DRAWS * sizeof(Hitable::MaterialProperties),
+            GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT));
+
+       memcpy(obj_material_ptr, _allMaterials.data(), sizeof(Hitable::MaterialProperties)* ACTUAL_DRAWS);
+       glUnmapNamedBuffer(material_buffer);
+       */
+   }
+   //const GLuint ssboBuffers[2] = { matrices_buffer, material_buffer };
+   //glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, 2, 2, ssboBuffers);
+   colorFormat format;
+   int width, height;
+
+   GLenum col_type, col_format;
+   void* texData;
+   // colourful debug texture               
+   unsigned int data[4] = { 0xff0000ff, 0xffffff00, 0xffff0000, 0xff00ff00 };
+
+
+   // blank invisible tex
+   //unsigned int data[4] = { 0x00000000, 0x00000000, 0x00000000, 0x00000000 };
+
+
+   //GLubyte data[] = { 255,255,255,255 };
+   texData = &data[0];
+   format = RGBA; // therefore...
+   col_type = GL_UNSIGNED_BYTE;
+   col_format = GL_BGRA;
+   width = 2;
+   height = 2;
+
+   // bind debug tex
+   glCreateTextures(GL_TEXTURE_2D, 1, &debugTex);
+
+   CHECKD3D(glTextureParameteri(debugTex, GL_TEXTURE_WRAP_S, GL_REPEAT));
+   CHECKD3D(glTextureParameteri(debugTex, GL_TEXTURE_WRAP_T, GL_REPEAT));
+
+   CHECKD3D(glTextureParameteri(debugTex, GL_TEXTURE_MIN_FILTER, GL_LINEAR));// _MIPMAP_LINEAR)); // Use mipmap filtering GL_LINEAR_MIPMAP_LINEAR
+   CHECKD3D(glTextureParameteri(debugTex, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+
+   //int num_mips = (int)std::log2(float(std::max(width, height))) + 1;
+
+   glTextureStorage2D(debugTex, 1, format, width, height);
+   glTextureSubImage2D(debugTex, 0, 0, 0, width, height, col_format, col_type, texData);
+   //glGenerateTextureMipmap(debugTex);
+
+
+   //Sleep(5000);
+   // INPUTS
+   //
+   // VERTEX ATTR
+   // - ALL OBJECT VERTICES/INDICES/TEX_COORDS
+   // - draw_ids
+
+   // uniforms
+   // - VIEW MATRIX
+ 
+   //
+   // uniform blocks
+   // - MATRICES
+   // - MATERIALS w/ TEX HANDLES
+
+   // buffers
+   // - DRAW COMMANDS (not accessed directly in shader but still mapped and called by multidrawelementsindirect)
+   // 
+
+   // PULL OUT ALL SHADER SETUP AND PUT HERE, MORE CONTROL AND EASIER TO DEBUG
+   // already done in RenderDevice::LoadShaders()
+
+   // figure these out (make uniforms?)
+   //m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->SetBool(SHADER_hdrEnvTextures, (m_pin3d.m_envTexture ? m_pin3d.m_envTexture : &m_pin3d.envTexture)->IsHDR());
+   //m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->SetTexture(SHADER_Texture1, m_pin3d.m_envTexture ? m_pin3d.m_envTexture : &m_pin3d.envTexture, false);
+   //m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->SetTexture(SHADER_Texture2, m_pin3d.m_pd3dPrimaryDevice->m_texMan.LoadTexture(m_pin3d.m_envRadianceTexture, false, false), false);
+
+   // seen in Material.fxh
+   //const vec4 st(m_ptable->m_envEmissionScale* m_globalEmissionScale, m_pin3d.m_envTexture ? (float)m_pin3d.m_envTexture->m_height/*+m_pin3d.m_envTexture->m_width)*0.5f*/ : (float)m_pin3d.envTexture.m_height/*+m_pin3d.envTexture.m_width)*0.5f*/, 0.f, 0.f);
+   //m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->SetVector(SHADER_fenvEmissionScale_TexWidth, &st);
+   
+
+
    // Direct all renders to the back buffer.
    m_pin3d.SetPrimaryRenderTarget(m_pin3d.m_pddsBackBuffer, m_pin3d.m_pddsZBuffer);
 
@@ -1890,13 +2230,26 @@ void Player::RenderMirrorOverlay()
 void Player::InitStatic(HWND hwndProgress)
 {
    TRACE_FUNCTION();
-
+///*
    for (size_t i = 0; i < m_vhitables.size(); ++i)
    {
-      Hitable * const ph = m_vhitables[i];
-      ph->RenderSetup();
+      Hitable * const ph = m_vhitables.at(i);
+      //if(ph->HitableGetItemType()!=eItemBumper) // if not multidraw rendering
+      if(ph->HitableGetItemType() != eItemBumper && ph->HitableGetItemType() != eItemPrimitive && ph->HitableGetItemType() != eItemSurface)
+          ph->RenderSetup();
    }
+//*/
 
+/*
+   // BUMPERS ONLY
+   for (size_t i = 0; i < m_vhitables.size(); ++i)
+   {
+      Hitable * const ph = m_vhitables.at(i);
+      //if(ph->HitableGetItemType()!=eItemBumper) // if not multidraw rendering
+      if(ph->HitableGetItemType() != eItemBumper) 
+          ph->RenderSetup();
+   }
+   */
    m_pin3d.InitPlayfieldGraphics();
    SetClipPlanePlayfield(true);
 }
@@ -3220,7 +3573,7 @@ void Player::DrawBulbLightBuffer()
    // check if any bulb specified at all
    bool do_renderstage = false;
    for (size_t i = 0; i < m_vHitTrans.size(); ++i)
-      if (m_vHitTrans[i]->RenderToLightBuffer())
+      if (m_vHitTrans.at(i)->RenderToLightBuffer())
       {
          do_renderstage = true;
          break;
@@ -3234,8 +3587,8 @@ void Player::DrawBulbLightBuffer()
 
                                                                                  // Draw bulb lights with transmission scale only
       for (size_t i = 0; i < m_vHitTrans.size(); ++i)
-         if (m_vHitTrans[i]->RenderToLightBuffer())
-            m_vHitTrans[i]->RenderDynamic();
+         if (m_vHitTrans.at(i)->RenderToLightBuffer())
+            m_vHitTrans.at(i)->RenderDynamic();
 
       m_pin3d.m_pd3dPrimaryDevice->SetRenderStateDepthBias(0.0f); //!! paranoia set of old state, remove as soon as sure that no other code still relies on that legacy set
                                                                   //m_pin3d.m_pd3dPrimaryDevice->SetRenderState(RenderDevice::ZWRITEENABLE, RenderDevice::RS_TRUE);
@@ -3319,6 +3672,8 @@ void Player::RenderDynamics()
    }
    else*/
    m_pin3d.m_pd3dPrimaryDevice->Clear(ZBUFFER | TARGET, 0, 1.0f, 0L);//Render Room later ?
+   //glFinish();
+
 
    if (reflection_path != 0)
    {
@@ -3353,6 +3708,254 @@ void Player::RenderDynamics()
       RenderMirrorOverlay();
    }
 
+
+
+
+   // MULTI DRAW OBJECTS GOOO
+
+
+   // UPDATE DYNAMIC VARS
+// Matrix Transforms
+
+// for all objects - see UpdateBallShaderMatrix()
+   Matrix3D viewMatrix, projMatrix[2];
+
+   Shader::GetTransform(TRANSFORMSTATE_VIEW, &viewMatrix, 1);
+   Shader::GetTransform(TRANSFORMSTATE_PROJECTION, &projMatrix[0], 2);
+   //m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw.GetTransform(TRANSFORMSTATE_VIEW, &viewMatrix, 1);
+   //g_pplayer->m_pin3d.m_pd3dPrimaryDevice.basicShaderMultiDraw;//GetTransform();
+
+   m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->SetTechnique(SHADER_TECHNIQUE_basic_with_texture);
+   //g_pplayer->m_pin3d.EnableAlphaBlend(false);
+   m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->BeginMulti(&debugTex);
+   //m_pin3d.m_pd3dPrimaryDevice->SetRenderStateDepthBias(0.0f);
+   //m_pin3d.m_pd3dPrimaryDevice->SetRenderState(RenderDevice::ZWRITEENABLE, RenderDevice::RS_TRUE);
+   //m_pin3d.m_pd3dPrimaryDevice->SetRenderStateCulling(RenderDevice::CULL_NONE);
+
+
+   _allMatrices.clear();
+
+   // ANIMATE / UPDATE ALL WORLD MATRICES
+   _allWorldMatrices.clear();
+
+   _allMatrices.reserve(MAX_DRAWS);
+   _allWorldMatrices.reserve(MAX_DRAWS);
+
+   /*
+   for (size_t i = 0; i < m_ptable->m_vedit.size(); i++)
+   {
+       if (m_ptable->m_vedit[i]->GetItemType() == eItemBumper || m_ptable->m_vedit[i]->GetItemType() == eItemPrimitive)
+       {
+           if (strcmp("playfield_mesh", g_pplayer->m_ptable->GetElementName(m_ptable->m_vedit[i])) == 0) { // temp avoid dealing with unusual primitive(s?)
+               continue;
+           }
+           m_ptable->m_vedit[i]->GetIHitable()->UpdateWorldMatrix(&_allWorldMatrices);
+       }
+   }
+   */
+
+   for (size_t i = 0; i < m_vHitNonTrans.size(); ++i)
+   {
+
+       Hitable* const ph = m_vHitNonTrans.at(i);
+       if (ph)
+       {
+           // sort into proper categories
+           if (ph->HitableGetItemType() == eItemBumper  || ph->HitableGetItemType() == eItemPrimitive || ph->HitableGetItemType() == eItemSurface) {
+               ph->UpdateWorldMatrix(&_allWorldMatrices);
+           }
+       }
+   }
+   // /*
+   for (size_t i = 0; i < m_vHitTrans.size(); ++i)
+   {
+
+       Hitable* const ph = m_vHitTrans.at(i);
+       if (ph)
+       {
+           // sort into proper categories
+           if (ph->HitableGetItemType() == eItemBumper  || ph->HitableGetItemType() == eItemPrimitive || ph->HitableGetItemType() == eItemSurface) {
+               ph->UpdateWorldMatrix(&_allWorldMatrices);
+           }
+       }
+   }
+   // */
+   for (GLuint i = 0; i < Hitable::drawID; i++) { // logic taken from UpdateBasicShaderMatrix()
+       Hitable::ObjMatrices matrices;
+       Matrix3D objWorldMatrix;
+
+       objWorldMatrix = _allWorldMatrices.at(i);
+       matrices.matWorldView = objWorldMatrix * viewMatrix;
+       //memcpy(matrices.matWorldViewInverseTranspose.m, matrices.matWorldView.m, 4 * 4 * sizeof(float));
+       matrices.matWorldViewInverseTranspose = matrices.matWorldView; // a copy
+       matrices.matWorldViewInverseTranspose.Invert();
+       matrices.matWorldViewInverseTranspose.Transpose();
+       matrices.matWorldViewProj[0] = matrices.matWorldView * projMatrix[0];
+       matrices.matWorldViewProj[1] = matrices.matWorldView * projMatrix[1];
+
+       _allMatrices.push_back(matrices);
+   }
+
+   //glBindBuffer(GL_SHADER_STORAGE_BUFFER, matrices_buffer);
+
+   /*
+   obj_mat_ptr = (Hitable::ObjMatrices*)
+       glMapNamedBufferRange(matrices_buffer,
+           0,
+           MAX_DRAWS * sizeof(Hitable::ObjMatrices),
+           GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
+
+*/
+
+
+   //memcpy(obj_mat_ptr, &*_allMatrices.begin(), sizeof(Hitable::ObjMatrices) * MAX_DRAWS);
+
+
+   ///////////////////////////////////
+   ///// DEBUG CUBE /////////////////
+   //////////////////////////////////
+
+   // verts
+
+   // indices
+
+   // world matrix (and other matrices)
+
+
+
+
+
+
+   
+
+   // taken from Bumper::RenderDynamic()
+   //m_pin3d.m_pd3dPrimaryDevice->SetRenderStateDepthBias(0.0f);
+   //m_pin3d.m_pd3dPrimaryDevice->SetRenderState(RenderDevice::ZWRITEENABLE, RenderDevice::RS_TRUE);
+   //m_pin3d.m_pd3dPrimaryDevice->SetRenderStateCulling(RenderDevice::CULL_CCW);
+   
+
+  
+
+ 
+   //glDisable(GL_BLEND);
+   //glDepthMask(GL_TRUE);
+   //glEnable(GL_DEPTH_TEST);
+   //glDisable(GL_CULL_FACE);
+
+   // https://web.archive.org/web/20180701213321/http://www.openglsuperbible.com/2013/10/16/the-road-to-one-million-draws/
+   // If you really must use blending, unsorted, amongst all your other rendering calls, then just leave blending on! Quite possibly, the most common blending configuration is :
+   //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+   //glBlendEquation(GL_FUNC_ADD);
+   
+   //glUnmapNamedBuffer(matrices_buffer);
+   //glUnmapNamedBuffer(indirect_draw_buffer);
+   // buffer debug
+// VBOs
+   
+   //Vertex3D_NoTex2* readVerts = new Vertex3D_NoTex2[_allVertices.size()];
+   //glGetNamedBufferSubData(multiVBO_Vertices, 0, _allVertices.size() * sizeof(Vertex3D_NoTex2), (Vertex3D_NoTex2*)readVerts);
+   //std::vector<Vertex3D_NoTex2> DEBUG_vertsOut(readVerts, readVerts + _allVertices.size());
+
+   //unsigned short* readIndices = new unsigned short[_allIndices.size()];
+   //glGetNamedBufferSubData(multiVBO_Indices, 0, _allIndices.size() * sizeof(unsigned short), (unsigned short*)readIndices);
+   //std::vector<unsigned short> DEBUG_indicesOut(readIndices, readIndices + _allIndices.size());
+
+   //unsigned int* readDrawIDs = new unsigned int[draw_index.size()];
+   //glGetNamedBufferSubData(draw_index_buffer, 0, draw_index.size() * sizeof(unsigned int), (unsigned int*)readDrawIDs);
+   //std::vector<unsigned int> DEBUG_drawIDsOut(readDrawIDs, readDrawIDs + draw_index.size());
+
+
+   /*
+
+   Hitable::MaterialProperties* readMaterials = new Hitable::MaterialProperties[_allMaterials.size()];
+   glGetNamedBufferSubData(material_buffer, 0, _allMaterials.size() * sizeof(Hitable::MaterialProperties), (Hitable::MaterialProperties*)readMaterials);
+   std::vector<Hitable::MaterialProperties> DEBUG_materialsOut(readMaterials, readMaterials + _allMaterials.size());   
+
+
+   Hitable::ObjMatrices* readMatrices = new Hitable::ObjMatrices[_allMatrices.size()];
+   glGetNamedBufferSubData(matrices_buffer, 0, _allMatrices.size() * sizeof(Hitable::ObjMatrices), (Hitable::ObjMatrices*)readMatrices);
+   std::vector<Hitable::ObjMatrices> DEBUG_matricesOut(readMatrices, readMatrices + _allMatrices.size());
+
+
+   
+   Hitable::DrawElementsIndirectCommand* readDrawCommands = new Hitable::DrawElementsIndirectCommand[m_commands.size()];
+   glGetNamedBufferSubData(indirect_draw_buffer, 0, m_commands.size() * sizeof(Hitable::DrawElementsIndirectCommand), (Hitable::DrawElementsIndirectCommand*)readDrawCommands);
+   std::vector<Hitable::DrawElementsIndirectCommand> DEBUG_drawCommandsOut(readDrawCommands, readDrawCommands + m_commands.size());
+
+   */
+
+   // state checks
+
+   //if (glIsTextureHandleResidentARB(_allMaterials[0].texHandle)) {
+   //    OutputDebugString("texture resident!");
+   //}
+   //else {
+   //    OutputDebugString("texture NOT resident!");
+   //}  
+   //
+   //if (glIsTextureHandleResidentARB(_allMaterials[1].texHandle)) {
+   //    OutputDebugString("texture resident!");
+   //}
+   //else {
+   //    OutputDebugString("texture NOT resident!");
+   //}
+   /*
+   for (auto i : Hitable::_allBindlessTextures) {
+       if (!glIsTexture(i.name)) {
+           OutputDebugString("texture name invalid!");
+       }
+       
+       if (!glIsTextureHandleResidentARB(i.handle)) {
+           OutputDebugString("texture NOT resident!");
+       }
+   }
+   */
+   //glTextureBarrier();
+   //glFinish();
+   //MAX_DRAWS = 2;
+
+  // glBindBuffer(GL_UNIFORM_BLOCK, 0);
+
+   glBindVertexArray(multiVAO);
+
+   glBindBuffer(GL_DRAW_INDIRECT_BUFFER, indirect_draw_buffer);
+
+   //const GLuint ssboBuffers[2] = { matrices_buffer, material_buffer };
+   //glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, 2, 2, ssboBuffers);
+   glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, matrices_buffer);
+   glNamedBufferSubData(matrices_buffer, 0, sizeof(Hitable::ObjMatrices)* MAX_DRAWS, _allMatrices.data());
+
+   glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, material_buffer);
+
+   // MATERIALS PERSISTENT MAPPED BUFFER
+   /*
+       obj_material_ptr = static_cast<Hitable::MaterialProperties*>(
+            glMapNamedBufferRange(material_buffer,
+            0,
+            MAX_DRAWS * sizeof(Hitable::MaterialProperties),
+            GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT));
+
+   memcpy(obj_material_ptr, _allMaterials.data(), sizeof(Hitable::MaterialProperties)* ACTUAL_DRAWS);
+   while (!glUnmapNamedBuffer(material_buffer)) { // if mapping failed
+       obj_material_ptr = static_cast<Hitable::MaterialProperties*>(
+           glMapNamedBufferRange(material_buffer,
+               0,
+               MAX_DRAWS * sizeof(Hitable::MaterialProperties),
+               GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT));
+
+       memcpy(obj_material_ptr, _allMaterials.data(), sizeof(Hitable::MaterialProperties) * ACTUAL_DRAWS);
+   
+   
+   
+   };
+   */
+
+   glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, 0, ACTUAL_DRAWS, 0);
+
+
+   /*
+   int x = m_ptable->m_vedit.size();
+
    for (size_t i = 0; i < m_ptable->m_vedit.size(); i++)
    {
       if (m_ptable->m_vedit[i]->GetItemType() != eItemDecal)
@@ -3364,6 +3967,8 @@ void Player::RenderDynamics()
          }
       }
    }
+
+
    // Draw decals (they have transparency, so they have to be drawn after the wall they are on)
    for (size_t i = 0; i < m_ptable->m_vedit.size(); i++)
    {
@@ -3376,7 +3981,7 @@ void Player::RenderDynamics()
          }
       }
    }
-
+   */
 #ifndef ENABLE_SDL
 
 #ifdef FPS
@@ -3387,18 +3992,21 @@ void Player::RenderDynamics()
    {
 #endif
 #endif
+       /*
       m_dmdstate = 0;
       // Draw non-transparent objects. No DMD's
       for (size_t i = 0; i < m_vHitNonTrans.size(); ++i)
-         if (!m_vHitNonTrans[i]->IsDMD())
-            m_vHitNonTrans[i]->RenderDynamic();
-
+          if (!m_vHitNonTrans[i]->IsDMD()) {
+              TracyGpuZone("NonTrans->RenderDynamic");
+              m_vHitNonTrans[i]->RenderDynamic();
+          }
+          */
       m_dmdstate = 2;
       // Draw non-transparent DMD's
       for (size_t i = 0; i < m_vHitNonTrans.size(); ++i)
-         if (m_vHitNonTrans[i]->IsDMD())
-            m_vHitNonTrans[i]->RenderDynamic();
-
+         if (m_vHitNonTrans.at(i)->IsDMD())
+            m_vHitNonTrans.at(i)->RenderDynamic();
+      
       DrawBalls();
 
 #ifndef ENABLE_SDL
@@ -3414,20 +4022,20 @@ void Player::RenderDynamics()
 #endif
 #endif
 
-      DrawBulbLightBuffer();
-
+      DrawBulbLightBuffer(); // sets shader uniform 'Texture3'
+      /*
       m_dmdstate = 0;
       // Draw transparent objects. No DMD's
       for (size_t i = 0; i < m_vHitTrans.size(); ++i)
          if (!m_vHitTrans[i]->IsDMD())
             m_vHitTrans[i]->RenderDynamic();
-
+        */
       m_dmdstate = 1;
       // Draw only transparent DMD's
       for (size_t i = 0; i < m_vHitNonTrans.size(); ++i) //!! is NonTrans correct or rather Trans????
-         if (m_vHitNonTrans[i]->IsDMD())
-            m_vHitNonTrans[i]->RenderDynamic();
-
+         if (m_vHitNonTrans.at(i)->IsDMD())
+            m_vHitNonTrans.at(i)->RenderDynamic();
+      
 
 #ifndef ENABLE_SDL
 #ifdef FPS
@@ -3791,10 +4399,13 @@ void Player::RenderStereo(int stereo3D, bool shaderAA) {
       }
       vr::EVRCompositorError error;
       CHECKD3D();
-      vr::Texture_t leftEyeTexture = { (void *)leftTexture->texture, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
+      vr::Texture_t leftEyeTexture = { (void*)(uintptr_t)leftTexture->texture, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
       CHECKD3D(error = vr::VRCompositor()->Submit(vr::Eye_Left, &leftEyeTexture));
-      vr::Texture_t rightEyeTexture = { (void *)rightTexture->texture, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
+      vr::Texture_t rightEyeTexture = { (void*)(uintptr_t)rightTexture->texture, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
+      glFinish();
+      
       CHECKD3D(error = vr::VRCompositor()->Submit(vr::Eye_Right, &rightEyeTexture));
+      glFinish();
       //CHECKD3D(vr::VRCompositor()->PostPresentHandoff()); // PostPresentHandoff gives mixed results, improved GPU frametime for some, worse CPU frametime for others, troublesome enough to not warrants it's usage for now
    }
 #endif
@@ -4523,7 +5134,7 @@ void Player::Render()
       m_pininput.ProcessKeys(/*sim_msec,*/ -(int)(timeforframe / 1000)); // trigger key events mainly for VPM<->VP rountrip
    }
    FlipVideoBuffers(vsync);
-
+   TracyGpuCollect;
 #ifndef ENABLE_SDL
 #ifdef FPS
    if (ProfilingMode() != 0)

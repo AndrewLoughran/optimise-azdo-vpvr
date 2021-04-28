@@ -553,6 +553,275 @@ void Surface::RenderDynamic()
    }
 }
 
+static const WORD rgiSlingshot[24] = { 0, 4, 3, 0, 1, 4, 1, 2, 5, 1, 5, 4, 4, 8, 5, 4, 7, 8, 3, 7, 4, 3, 6, 7 };
+
+static IndexBuffer* slingIBuffer = NULL;        // this is constant so we only have one global instance
+
+
+void Surface::MultiDrawSetup(std::vector<Hitable::DrawElementsIndirectCommand>* m_commands,
+    std::vector<Vertex3D_NoTex2>* _allVertices,
+    std::vector<unsigned int>* _allIndices,
+    std::vector<Hitable::MaterialProperties>* _allMaterials,
+    std::vector<Hitable::ObjMatrices>* _allMatrices,
+    std::vector<Matrix3D>* _allWorldMatrices)
+{
+    // RENDERSETUP()
+    const float oldBottomHeight = m_d.m_heightbottom;
+    const float oldTopHeight = m_d.m_heighttop;
+
+    m_d.m_heightbottom *= m_ptable->m_BG_scalez[m_ptable->m_BG_current_set];
+    m_d.m_heighttop *= m_ptable->m_BG_scalez[m_ptable->m_BG_current_set];
+    if (!m_vlinesling.empty()){
+        //PrepareSlingshots();
+
+        const float slingbottom = (m_d.m_heighttop - m_d.m_heightbottom) * 0.2f + m_d.m_heightbottom;
+        const float slingtop = (m_d.m_heighttop - m_d.m_heightbottom) * 0.8f + m_d.m_heightbottom;
+
+        Vertex3D_NoTex2* const rgv3D = new Vertex3D_NoTex2[m_vlinesling.size() * 9];
+        //auto const rgv3D = std::make_unique<Vertex3D_NoTex2[]>(m_vlinesling.size() * 9);
+
+        unsigned int offset = 0;
+        for (size_t i = 0; i < m_vlinesling.size(); i++, offset += 9)
+        {
+            LineSegSlingshot* const plinesling = m_vlinesling[i];
+            plinesling->m_slingshotanim.m_fAnimations = (m_d.m_fSlingshotAnimation != 0);
+
+            rgv3D[offset].x = plinesling->v1.x;
+            rgv3D[offset].y = plinesling->v1.y;
+            rgv3D[offset].z = slingbottom + m_ptable->m_tableheight;
+
+            rgv3D[offset + 1].x = (plinesling->v1.x + plinesling->v2.x) * 0.5f + plinesling->normal.x * (m_d.m_slingshotforce * 0.25f); //40;//20;
+            rgv3D[offset + 1].y = (plinesling->v1.y + plinesling->v2.y) * 0.5f + plinesling->normal.y * (m_d.m_slingshotforce * 0.25f); //20;
+            rgv3D[offset + 1].z = slingbottom + m_ptable->m_tableheight;
+
+            rgv3D[offset + 2].x = plinesling->v2.x;
+            rgv3D[offset + 2].y = plinesling->v2.y;
+            rgv3D[offset + 2].z = slingbottom + m_ptable->m_tableheight;
+
+            for (unsigned int l = 0; l < 3; l++)
+            {
+                rgv3D[l + offset + 3].x = rgv3D[l + offset].x;
+                rgv3D[l + offset + 3].y = rgv3D[l + offset].y;
+                rgv3D[l + offset + 3].z = slingtop + m_ptable->m_tableheight;
+            }
+
+            for (unsigned int l = 0; l < 3; l++)
+            {
+                rgv3D[l + offset + 6].x = rgv3D[l + offset].x - plinesling->normal.x * 5.0f;
+                rgv3D[l + offset + 6].y = rgv3D[l + offset].y - plinesling->normal.y * 5.0f;
+                rgv3D[l + offset + 6].z = slingtop + m_ptable->m_tableheight;
+            }
+
+            ComputeNormals(rgv3D + offset, 9, rgiSlingshot, 24);
+            //ComputeNormals(&rgv3D[offset], 9, rgiSlingshot, 24);
+        }
+
+        if (slingshotVBuffer)
+            slingshotVBuffer->release();
+        VertexBuffer::CreateVertexBuffer((unsigned int)m_vlinesling.size() * 9, 0, MY_D3DFVF_NOTEX2_VERTEX, &slingshotVBuffer);
+
+        Vertex3D_NoTex2* buf;
+        slingshotVBuffer->lock(0, 0, (void**)&buf, VertexBuffer::WRITEONLY);
+        memcpy(buf, rgv3D, m_vlinesling.size() * 9 * sizeof(Vertex3D_NoTex2));
+        //slingshotVBuffer->unlock();
+
+        delete[] rgv3D;
+
+        if (!slingIBuffer) {
+            slingIBuffer = IndexBuffer::CreateAndFillPermanentIndexBuffer(24, (unsigned int*)rgiSlingshot);
+            //slingIBuffer = IndexBuffer::CreateAndFillIndexBuffer(24, rgiSlingshot);
+        }
+            
+        const Material* const mat = m_ptable->GetMaterial(m_d.m_szSlingShotMaterial);
+
+        slingshotWorldMatrix.SetIdentity();
+
+        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, slingshotVBuffer, slingIBuffer, mat, nullptr, &slingshotWorldMatrix);
+
+    }
+
+    m_isDynamic = false;
+    if (m_d.m_fSideVisible)
+    {
+        if (m_ptable->GetMaterial(m_d.m_szSideMaterial)->m_bOpacityActive)
+            m_isDynamic = true;
+    }
+    if (m_d.m_fTopBottomVisible)
+    {
+        if (m_ptable->GetMaterial(m_d.m_szTopMaterial)->m_bOpacityActive)
+            m_isDynamic = true;
+    }
+
+    // create all vertices for dropped and non-dropped surface
+    //PrepareWallsAtHeight();
+    if (IBuffer)
+        IBuffer->release();
+    if (VBuffer)
+        VBuffer->release();
+
+    eastl::vector<Vertex3D_NoTex2> topBottomBuf;
+    eastl::vector<Vertex3D_NoTex2> sideBuf;
+    eastl::vector<WORD> topBottomIndicesWORD;
+    eastl::vector<WORD> sideIndicesWORD;
+
+    GenerateMesh(topBottomBuf, sideBuf, topBottomIndicesWORD, sideIndicesWORD);
+
+    // quick cast instead of modifying GenerateMesh
+    std::vector<unsigned int> topBottomIndices(topBottomIndicesWORD.begin(), topBottomIndicesWORD.end());
+    std::vector<unsigned int> sideIndices(sideIndicesWORD.begin(), sideIndicesWORD.end());
+    //std::copy(topBottomIndicesWORD.begin(), topBottomIndicesWORD.end(), topBottomIndices.begin());
+    //std::copy()
+    //std::copy(sideIndicesWORD.begin(), sideIndicesWORD.end(), sideIndices.begin());
+
+    VertexBuffer::CreateVertexBuffer(numVertices * 4 + ((topBottomBuf.size() > 0) ? numVertices * 3 : 0), 0, MY_D3DFVF_NOTEX2_VERTEX, &VBuffer);
+
+    Vertex3D_NoTex2* verts;
+    VBuffer->lock(0, 0, (void**)&verts, VertexBuffer::WRITEONLY);
+    memcpy(verts, sideBuf.data(), sizeof(Vertex3D_NoTex2) * numVertices * 4);
+
+    if (topBottomBuf.size() > 0)
+        //if (m_d.m_fVisible) // Visible could still be set later if rendered dynamically
+    {
+        memcpy(verts + numVertices * 4, topBottomBuf.data(), sizeof(Vertex3D_NoTex2) * numVertices * 3);
+    }
+
+    //VBuffer->unlock();
+
+    
+
+    IndexBuffer::CreateIndexBuffer((unsigned int)topBottomIndices.size() + (unsigned int)sideIndices.size(), 0, IndexBuffer::FMT_INDEX32, &IBuffer);
+    //IndexBuffer::CreateAndFillPermanentIndexBuffer((unsigned int)topBottomIndices.size() + (unsigned int)sideIndices.size(), 0, IndexBuffer::FMT_INDEX16, &IBuffer);
+
+    unsigned int* buf = nullptr;
+    IBuffer->lock(0, 0, (void**)&buf, 0);
+    memcpy(buf, sideIndices.data(), sideIndices.size() * sizeof(unsigned int));
+    if (topBottomIndices.size() > 0)
+        memcpy(buf + sideIndices.size(), topBottomIndices.data(), topBottomIndices.size() * sizeof(unsigned int));
+    //IBuffer->unlock();
+
+    surfaceWorldMatrix.SetIdentity();
+
+    // SIDE
+    if (m_d.m_fSideVisible && (numVertices > 0)) {
+        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, VBuffer, IBuffer, m_ptable->GetMaterial(m_d.m_szSideMaterial), m_ptable->GetImage(m_d.m_szSideImage), &surfaceWorldMatrix, numVertices*4, 0, numVertices*6, 0);
+    }
+
+    // TOP/BOTTOM
+    if (m_d.m_fTopBottomVisible && (numPolys > 0))
+    {
+        //PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, VBuffer, IBuffer, m_ptable->GetMaterial(m_d.m_szTopMaterial), m_ptable->GetImage(m_d.m_szImage), &surfaceWorldMatrix, numVertices * 4 + (!fDrop ? 0 : numVertices), numVertices * 6);
+        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, VBuffer, IBuffer, m_ptable->GetMaterial(m_d.m_szTopMaterial), m_ptable->GetImage(m_d.m_szImage), &surfaceWorldMatrix, numVertices, numVertices*4 + (!m_fIsDropped ? 0 : numVertices), numPolys*3, numVertices*6);
+    }
+
+    m_d.m_heightbottom = oldBottomHeight;
+    m_d.m_heighttop = oldTopHeight;
+    // END RENDERSETUP()
+
+
+    // RENDERDYNAMIC()
+    /*
+    if (m_ptable->m_fReflectionEnabled && !m_d.m_fReflectionEnabled)
+        return;
+
+    RenderSlingshots();
+
+    if (m_d.m_fDroppable || m_isDynamic)
+    {
+        if (!m_fIsDropped)
+        {
+            // Render wall raised.
+            RenderWallsAtHeight(false);
+        }
+        else    // is dropped
+        {
+            // if this wall is part of flipbook animation, do not render when dropped
+            if (!m_d.m_fFlipbook)
+            {
+                // Render wall dropped (smashed to a pancake at bottom height). 
+                RenderWallsAtHeight(true);
+            }
+        }
+    }
+    */
+};
+
+void Surface::UpdateWorldMatrix(std::vector<Matrix3D>* _allWorldMatrices) {
+    if (!m_vlinesling.empty()) {
+        for (const auto& i : m_vlinesling) {
+            _allWorldMatrices->push_back(slingshotWorldMatrix);
+        }
+    }
+    /*
+    if (!m_d.m_fSideVisible || (m_vlinesling.size() == 0))
+        return;
+
+    bool nothing_to_draw = true;
+    for (size_t i = 0; i < m_vlinesling.size(); i++)
+    {
+        LineSegSlingshot* const plinesling = m_vlinesling[i];
+        if (plinesling->m_slingshotanim.m_iframe || plinesling->m_doHitEvent)
+        {
+            nothing_to_draw = false;
+            break;
+        }
+    }
+
+    if (nothing_to_draw)
+        return;
+*/
+                    // render side
+            if (m_d.m_fSideVisible) // Don't need to render walls if dropped
+            {
+                _allWorldMatrices->push_back(surfaceWorldMatrix);
+            }
+
+            // render top&bottom
+            if (m_d.m_fTopBottomVisible)
+            {
+                _allWorldMatrices->push_back(surfaceWorldMatrix);
+            }
+/*
+    // 'STATIC' SURFACES
+    if (!m_d.m_fDroppable && !m_isDynamic)
+    {
+
+            // render side
+            if (m_d.m_fSideVisible && (numVertices > 0)) // Don't need to render walls if dropped
+            {
+                _allWorldMatrices->push_back(surfaceWorldMatrix);
+            }
+
+            // render top&bottom
+            if (m_d.m_fTopBottomVisible && (numPolys > 0))
+            {
+                _allWorldMatrices->push_back(surfaceWorldMatrix);
+            }
+
+    }
+    else { // m_d.m_fDroppable || m_isDynamic       'DYNAMIC' SURFACES
+        if (!m_fIsDropped) {
+            // render side
+            if (m_d.m_fSideVisible) // Don't need to render walls if dropped
+            {
+                _allWorldMatrices->push_back(surfaceWorldMatrix);
+            }
+
+            // render top&bottom
+            if (m_d.m_fTopBottomVisible)
+            {
+                _allWorldMatrices->push_back(surfaceWorldMatrix);
+            }
+        }
+        else { // is dropped -> SIDE ONLY
+            if (!m_d.m_fFlipbook){
+            _allWorldMatrices->push_back(surfaceWorldMatrix);
+        }
+        }
+    }
+
+   */ 
+}
+
 void Surface::GenerateMesh(eastl::vector<Vertex3D_NoTex2> &topBuf, eastl::vector<Vertex3D_NoTex2> &sideBuf, eastl::vector<WORD> &topBottomIndices, eastl::vector<WORD> &sideIndices)
 {
    eastl::vector<RenderVertex> vvertex;
@@ -845,7 +1114,7 @@ void Surface::PrepareWallsAtHeight()
 
    VBuffer->unlock();
 
-   //
+   
 
    IndexBuffer::CreateIndexBuffer((unsigned int)topBottomIndices.size() + (unsigned int)sideIndices.size(), 0, IndexBuffer::FMT_INDEX16, &IBuffer);
 
@@ -857,9 +1126,6 @@ void Surface::PrepareWallsAtHeight()
    IBuffer->unlock();
 }
 
-static const WORD rgiSlingshot[24] = { 0, 4, 3, 0, 1, 4, 1, 2, 5, 1, 5, 4, 4, 8, 5, 4, 7, 8, 3, 7, 4, 3, 6, 7 };
-
-static IndexBuffer* slingIBuffer = NULL;        // this is constant so we only have one global instance
 
 void Surface::PrepareSlingshots()
 {

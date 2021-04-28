@@ -70,6 +70,12 @@ public:
 
    STANDARD_NOSCRIPT_EDITABLE_DECLARES(Decal, eItemDecal, DECAL, VIEW_PLAYFIELD | VIEW_BACKGLASS)
 
+    virtual void MultiDrawSetup(std::vector<DrawElementsIndirectCommand>* m_commands,
+           std::vector<Vertex3D_NoTex2>* _allVertices,
+           std::vector<unsigned int>* _allIndices,
+           std::vector<MaterialProperties>* _allMaterials,
+           std::vector<ObjMatrices>* _allMatrices);
+
    virtual void MoveOffset(const float dx, const float dy);
    virtual void SetObjectPos();
    // Multi-object manipulation

@@ -154,6 +154,7 @@ public:
 
 private:
    VertexBuffer *tableVBuffer;
+   bool firstRun;
 #ifdef ENABLE_BAM
    public: void UpdateBAMHeadTracking();                 // #ravarcade: UpdateBAMHeadTracking will set proj/view matrix to add BAM view and head tracking
 #endif

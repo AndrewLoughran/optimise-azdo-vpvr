@@ -12,7 +12,7 @@
 
 // defined in objloader.cpp
 extern bool WaveFrontObj_Load(const char *filename, const bool flipTv, const bool convertToLeftHanded);
-extern void WaveFrontObj_GetVertices(eastl::vector<Vertex3D_NoTex2>& verts);
+extern void WaveFrontObj_GetVertices(std::vector<Vertex3D_NoTex2>& verts);
 extern void WaveFrontObj_GetIndices(eastl::vector<unsigned int>& list);
 extern void WaveFrontObj_Save(const char *filename, const char *description, const Mesh& mesh);
 //
@@ -1335,6 +1335,231 @@ void Primitive::RenderSetup()
    if (indexBuffer)
       indexBuffer->release();
    indexBuffer = IndexBuffer::CreateAndFillIndexBuffer(m_mesh.m_indices);
+}
+
+void Primitive::MultiDrawSetup(std::vector<DrawElementsIndirectCommand>* m_commands,
+    std::vector<Vertex3D_NoTex2>* _allVertices,
+    std::vector<unsigned int>* _allIndices,
+    std::vector<MaterialProperties>* _allMaterials,
+    std::vector<ObjMatrices>* _allMatrices,
+    std::vector<Matrix3D>* _allWorldMatrices) {
+
+    if (m_d.m_fGroupdRendering || m_d.m_fSkipRendering)
+        return;
+
+    if (strcmp("playfield_mesh", g_pplayer->m_ptable->GetElementName((IEditable*)this)) == 0) {
+        RenderSetup();
+        return;
+    }
+
+
+    m_currentFrame = -1.f;
+
+    if (vertexBuffer)
+        vertexBuffer->release();
+
+    VertexBuffer::CreateVertexBuffer((unsigned int)m_mesh.m_vertices.size(), 0, MY_D3DFVF_NOTEX2_VERTEX, &vertexBuffer);
+
+    if (indexBuffer)
+        indexBuffer->release();
+    indexBuffer = IndexBuffer::CreateAndFillPermanentIndexBuffer(m_mesh.m_indices);
+
+    std::vector<unsigned int> test(m_mesh.m_indices.begin(), m_mesh.m_indices.end());
+    /*
+    ///////////////////////////////////////////////////////
+    // handle this animation stuff in Animate()///////////
+    float intPart;
+    const float fractpart = modf(frame, &intPart);
+    const int iFrame = (int)intPart;
+
+    if (m_currentFrame != -1.f) // only checked once here but will need to check again in Animate() for playanim() suppoer
+    {
+        for (size_t i = 0; i < m_vertices.size(); i++)
+        {
+            const VertData& v = m_animationFrames[iFrame].m_frameVerts[i];
+            m_vertices[i].x = v.x;
+            m_vertices[i].y = v.y;
+            m_vertices[i].z = v.z;
+            m_vertices[i].nx = v.nx;
+            m_vertices[i].ny = v.ny;
+            m_vertices[i].nz = v.nz;
+
+            if (iFrame + 1 < (int)m_animationFrames.size())
+            {
+                const VertData& v2 = m_animationFrames[iFrame + 1].m_frameVerts[i];
+                m_vertices[i].x += (v2.x - m_vertices[i].x) * fractpart;
+                m_vertices[i].y += (v2.y - m_vertices[i].y) * fractpart;
+                m_vertices[i].z += (v2.z - m_vertices[i].z) * fractpart;
+                m_vertices[i].nx += (v2.nx - m_vertices[i].nx) * fractpart;
+                m_vertices[i].ny += (v2.ny - m_vertices[i].ny) * fractpart;
+                m_vertices[i].nz += (v2.nz - m_vertices[i].nz) * fractpart;
+            }
+        }
+    }
+    */
+    ///////////////////////////////////////////////
+
+
+
+    // assuming m_mesh.m_vertices is already filled with mesh data?
+    Vertex3D_NoTex2* buf;
+    vertexBuffer->lock(0, 0, (void**)&buf, VertexBuffer::WRITEONLY);
+    memcpy(buf, m_mesh.m_vertices.data(), sizeof(Vertex3D_NoTex2) * m_mesh.m_vertices.size());
+    //vb->unlock();
+
+    std::vector<Vertex3D_NoTex2> test2(m_mesh.m_vertices.begin(), m_mesh.m_vertices.end());
+
+    //////// RENDEROBJECT() ////////////////
+    // the function originally draws but our logic is just gathering draw data //
+
+    RenderDevice* const pd3dDevice = g_pplayer->m_pin3d.m_pd3dPrimaryDevice;
+    Texture* mainTex{};
+    Texture* nMap{};
+    //D3DTexture* backglassTex;
+    Material* mat{};
+
+    if (!m_d.m_useAsPlayfield)
+    {
+
+        mat = m_ptable->GetMaterial(m_d.m_szMaterial);
+
+        nMap = m_ptable->GetImage(m_d.m_szNormalMap);
+
+        // not necessary i think if its only called once for setup as the matrix is already populated somewhere
+        //RecalculateMatrices();
+
+        // will need to handle D3DTexture's later but for now this shouldn't be called?
+        if (g_pplayer->m_texPUP && _stricmp(m_d.m_szImage, "backglassimage") == 0)
+        {
+            //pd3dDevice->basicShader->SetTechnique(SHADER_TECHNIQUE_basic_with_texture);
+            //pd3dDevice->basicShader->SetTexture(SHADER_Texture0, pd3dDevice->m_texMan.LoadTexture(g_pplayer->m_texPUP, true, false), false);
+
+            //backglassTex = pd3dDevice->m_texMan.LoadTexture(g_pplayer->m_texPUP, true, false);
+            
+            //g_pplayer->m_pin3d.SetPrimaryTextureFilter(0, TEXTURE_MODE_TRILINEAR);
+            // accommodate models with UV coords outside of [0,1]
+            //pd3dDevice->SetTextureAddressMode(0, RenderDevice::TEX_WRAP);
+        }
+        else
+        {
+            mainTex = m_ptable->GetImage(m_d.m_szImage);
+            /*
+            if (pin && nMap)
+            {
+               // pd3dDevice->basicShader->SetTechnique(SHADER_TECHNIQUE_basic_with_texture);
+                pd3dDevice->basicShader->SetTexture(SHADER_Texture0, pin, false, false);
+                pd3dDevice->basicShader->SetTexture(SHADER_Texture4, nMap, true, false);
+                pd3dDevice->basicShader->SetAlphaTestValue(pin->m_alphaTestValue * (float)(1.0 / 255.0));
+                pd3dDevice->basicShader->SetBool(SHADER_objectSpaceNormalMap, m_d.m_objectSpaceNormalMap);
+
+                //g_pplayer->m_pin3d.SetPrimaryTextureFilter(0, TEXTURE_MODE_TRILINEAR);
+                // accommodate models with UV coords outside of [0,1]
+                pd3dDevice->SetTextureAddressMode(0, RenderDevice::TEX_WRAP);
+            }
+            else if (pin)
+            {
+                pd3dDevice->basicShader->SetTechnique(SHADER_TECHNIQUE_basic_with_texture);
+                pd3dDevice->basicShader->SetTexture(SHADER_Texture0, pin, false, false);
+                pd3dDevice->basicShader->SetAlphaTestValue(pin->m_alphaTestValue * (float)(1.0 / 255.0));
+
+                //g_pplayer->m_pin3d.SetPrimaryTextureFilter(0, TEXTURE_MODE_TRILINEAR);
+                // accommodate models with UV coords outside of [0,1]
+                pd3dDevice->SetTextureAddressMode(0, RenderDevice::TEX_WRAP);
+            }
+            else
+                pd3dDevice->basicShader->SetTechnique(SHADER_TECHNIQUE_basic_without_texture);
+                */
+        }
+        //pd3dDevice->basicShader->SetBool(SHADER_doNormalMapping, nMap);
+        //pd3dDevice->basicShader->SetBool(SHADER_is_metal, mat->m_bIsMetal);
+        // set transform
+        //g_pplayer->UpdateBasicShaderMatrix(&fullMatrix);
+
+
+        /*
+        // draw the mesh
+        pd3dDevice->basicShader->Begin(0);
+        if (m_d.m_fGroupdRendering)
+            pd3dDevice->DrawIndexedPrimitiveVB(RenderDevice::TRIANGLELIST, MY_D3DFVF_NOTEX2_VERTEX, vertexBuffer, 0, m_numGroupVertices, indexBuffer, 0, m_numGroupIndices);
+        else
+            pd3dDevice->DrawIndexedPrimitiveVB(RenderDevice::TRIANGLELIST, MY_D3DFVF_NOTEX2_VERTEX, vertexBuffer, 0, (DWORD)m_mesh.NumVertices(), indexBuffer, 0, (DWORD)m_mesh.NumIndices());
+        pd3dDevice->basicShader->End();
+
+        if (m_d.m_fBackfacesEnabled && mat->m_bOpacityActive)
+        {
+            pd3dDevice->SetRenderStateCulling(RenderDevice::CULL_CCW);
+            pd3dDevice->basicShader->Begin(0);
+            if (m_d.m_fGroupdRendering)
+                pd3dDevice->DrawIndexedPrimitiveVB(RenderDevice::TRIANGLELIST, MY_D3DFVF_NOTEX2_VERTEX, vertexBuffer, 0, m_numGroupVertices, indexBuffer, 0, m_numGroupIndices);
+            else
+                pd3dDevice->DrawIndexedPrimitiveVB(RenderDevice::TRIANGLELIST, MY_D3DFVF_NOTEX2_VERTEX, vertexBuffer, 0, (DWORD)m_mesh.NumVertices(), indexBuffer, 0, (DWORD)m_mesh.NumIndices());
+            pd3dDevice->basicShader->End();
+        }
+        if (nMap) pd3dDevice->basicShader->SetBool(SHADER_doNormalMapping, false);//Only place where nMap is used
+        // reset transform
+        g_pplayer->UpdateBasicShaderMatrix();
+
+        pd3dDevice->SetTextureAddressMode(0, RenderDevice::TEX_CLAMP);
+        //g_pplayer->m_pin3d.DisableAlphaBlend(); //!! not necessary anymore
+
+        if (m_d.m_fDisableLightingTop != 0.f || m_d.m_fDisableLightingBelow != 0.f)
+        {
+            const vec4 tmp(0.f, 0.f, 0.f, 0.f);
+            pd3dDevice->basicShader->SetDisableLighting(tmp);
+        }
+        */
+    }
+    else // m_d.m_useAsPlayfield == true:          // is this ever called?
+    {
+        /*
+        // shader is already fully configured in the playfield rendering case when we arrive here, so we only setup some special primitive params
+
+        const vec4 tmp(m_d.m_fDisableLightingTop, m_d.m_fDisableLightingBelow, 0.f, 0.f);
+        pd3dDevice->basicShader->SetDisableLighting(tmp);
+
+        //pd3dDevice->SetRenderState(RenderDevice::CULLMODE, D3DCULL_CCW); // don't mess with the render states when doing playfield rendering
+        // set transform
+        g_pplayer->UpdateBasicShaderMatrix(&fullMatrix);
+        pd3dDevice->basicShader->Begin(0);
+        pd3dDevice->DrawIndexedPrimitiveVB(RenderDevice::TRIANGLELIST, MY_D3DFVF_NOTEX2_VERTEX, vertexBuffer, 0, (DWORD)m_mesh.NumVertices(), indexBuffer, 0, (DWORD)m_mesh.NumIndices());
+        pd3dDevice->basicShader->End();
+        // reset transform
+        g_pplayer->UpdateBasicShaderMatrix();
+
+        if (m_d.m_fDisableLightingTop != 0.f || m_d.m_fDisableLightingBelow != 0.f)
+        {
+            const vec4 tmp(0.f, 0.f, 0.f, 0.f);
+            pd3dDevice->basicShader->SetDisableLighting(tmp);
+        }
+        */
+    }
+
+
+
+    ///// END OF RENDEROBJECT() ////////////
+
+
+
+
+    RecalculateMatrices();
+   
+   
+
+    //RenderObject(); // dummy link
+    PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, vertexBuffer, indexBuffer, mat, mainTex, &fullMatrix);
+}
+
+void Primitive::UpdateWorldMatrix(std::vector<Matrix3D>* _allWorldMatrices) {
+
+    if (strcmp("playfield_mesh", g_pplayer->m_ptable->GetElementName((IEditable*)this)) == 0) {
+        
+        return;
+    }
+
+    // multidraw: add actual animation logic here from RenderObject()
+    // end with call to SetWorldMatrix();
+    RecalculateMatrices();
+    _allWorldMatrices->push_back(fullMatrix);
 }
 
 void Primitive::RenderStatic()

@@ -23,7 +23,7 @@ BaseTexture* BaseTexture::CreateFromFreeImage(FIBITMAP* dib)
         // the mem is so low that the texture won't even be able to be rescaled -> return
         if (maxTexDim <= 0)
         {
-            FreeImage_Unload(dib);
+            if(dib) FreeImage_Unload(dib);
             return NULL;
         }
 

@@ -159,6 +159,7 @@ enum SaveDirtyState
 #define MY_D3DFVF_NOTEX2_VERTEX         1
 #define MY_D3DTRANSFORMED_NOTEX2_VERTEX 2 //!! delete
 
+// multidraw: why are these classes? should try switching to structs
 //These Structs are used for rendering and loading meshes. They must match the VertexDeclaration in RenderDevice.cpp and the loaded meshes.
 class Vertex3D_TexelOnly // for rendering, uses MY_D3DFVF_TEX
 {

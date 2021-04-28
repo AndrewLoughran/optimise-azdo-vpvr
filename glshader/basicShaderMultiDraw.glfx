@@ -1,0 +1,725 @@
+////GLOBAL
+#version 450 core
+
+#extension GL_ARB_bindless_texture : enable
+#extension GL_ARB_shader_draw_parameters : enable
+
+uniform mat4 matView;
+
+
+
+
+////DEFINES
+
+//!! have switch to choose if texture is weighted by diffuse/glossy or is just used raw?
+
+#define NUM_BALL_LIGHTS 0 // just to avoid having too much constant mem allocated
+//#define MAX_DRAW_LIMIT 182 // this can be increased at cost of memory. this is here as there is no way to have dynamic UBOs and currently chose not to use multiple SSBOs
+
+
+uniform bool ignoreStereo = false; // Must be able to force only one invocation for drawing bulb light texture
+
+
+
+
+////VERTEX
+struct MATRICESSTRUCT 
+{
+    mat4 matWorldView;
+	mat4 matWorldViewInverseTranspose;
+	mat4 matWorldViewProj[2]; // remember there's 2 of these in VR
+};
+
+layout (std430, binding = 0) buffer MATRICES_BLOCK
+{
+    MATRICESSTRUCT objMatrices[];
+};
+
+
+
+////GEOMETRY
+#extension GL_ARB_viewport_array : enable
+
+layout(triangles) in;
+layout(triangle_strip, max_vertices = 3) out;
+
+// Use geometry invocations for stereo rendering
+#if (eyes == 1)
+   layout(invocations = 1) in;
+#else
+   layout(invocations = 2) in;
+#endif
+
+struct MATRICESSTRUCT 
+{
+    mat4 matWorldView;
+	mat4 matWorldViewInverseTranspose;
+	mat4 matWorldViewProj[2]; // remember there's 2 of these in VR
+};
+
+layout (std430, binding = 0) buffer MATRICES_BLOCK
+{
+    MATRICESSTRUCT objMatrices[];
+};
+
+
+
+
+////FRAGMENT
+// Early-Z-test implementation:
+// Don't enable early_fragment_tests in basicshader, only enable conservative_depth
+// Otherwise shader will cull unintended things like mini-playfield under regular playfield
+//#extension GL_ARB_shader_image_load_store : enable
+//#extension GL_ARB_conservative_depth : enable
+//layout(early_fragment_tests) in;
+layout(depth_unchanged) out float gl_FragDepth;
+
+// NEW MULTI DRAW BIZ
+struct MatProperties
+{
+    sampler2D texHandle;    
+    //uvec2 texHandle;
+    //sampler2D paddingHandle;    
+
+    float AZDO_alphaTestValue;
+    float padding1;
+
+    vec4 AZDO_cClearcoat_EdgeAlpha;
+    vec4 AZDO_cGlossy_ImageLerp;
+    vec4 AZDO_cBase_Alpha;
+    vec4 AZDO_Roughness_WrapL_Edge_Thickness;
+
+
+
+    // booleans (they are floats for std140 packing reasons)
+    float AZDO_hdrEnvTextures; 
+    float AZDO_objectSpaceNormalMap;
+    float AZDO_is_metal;
+    float AZDO_doNormalMapping;
+
+
+
+
+};
+
+layout (std430, binding = 1) buffer MATERIAL_BLOCK
+{
+    MatProperties materials[];
+};
+
+
+struct MATRICESSTRUCT 
+{
+    mat4 matWorldView;
+	mat4 matWorldViewInverseTranspose;
+	mat4 matWorldViewProj[eyes]; // remember there's 2 of these in VR
+};
+
+layout (std430, binding = 0) buffer MATRICES_BLOCK
+{
+    MATRICESSTRUCT objMatrices[];
+};
+flat in uint draw_id_fs;
+
+uniform sampler2D Texture0; // base texture
+uniform sampler2D Texture1; // envmap
+uniform sampler2D Texture2; // envmap radiance
+uniform sampler2D Texture3; // bulb light buffer
+uniform sampler2D Texture4; // normal map
+
+uniform bool hdrEnvTextures;
+uniform bool objectSpaceNormalMap;
+uniform bool is_metal;
+uniform bool doNormalMapping;
+
+#include "Helpers.fxh"
+#include "Material.fxh"
+
+uniform vec4 cClearcoat_EdgeAlpha;
+uniform vec4 cGlossy_ImageLerp;
+//!! No value is under 0.02
+//!! Non-metals value are un-intuitively low: 0.02-0.08
+//!! Gemstones are 0.05-0.17
+//!! Metals have high specular reflectance: 0.5-1.0
+
+uniform float alphaTestValue;
+
+out vec4 color;
+
+
+
+
+
+
+
+mat3 TBN_trafo(vec3 N, vec3 V, vec2 uv)
+{
+	// derivatives: edge vectors for tri-pos and tri-uv
+	vec3 dpx = dFdx(V);
+	vec3 dpy = dFdy(V);
+	vec2 duvx = dFdx(uv);
+	vec2 duvy = dFdy(uv);
+
+	// solve linear system
+	vec3 dp2perp = cross(N, dpy);
+	vec3 dp1perp = cross(dpx, N);
+	vec3 T = dp2perp * duvx.x + dp1perp * duvy.x;
+	vec3 B = dp2perp * duvx.y + dp1perp * duvy.y;
+
+	// construct scale-invariant transformation
+	return mat3(T, B, N * sqrt( max(dot(T,T), dot(B,B)) )); // inverse scale, as will be normalized anyhow later-on (to save some mul's)
+}
+
+vec3 normal_map(vec3 N, vec3 V, vec2 uv)
+{
+   vec3 tn = texture(Texture4, uv).xyz * (255./127.) - (128./127.); // Note that Blender apparently does export tangent space normalmaps for Z (Blue) at full range, so 0..255 -> 0..1, which misses an option for here!
+
+   if (objectSpaceNormalMap)
+   {
+      tn.z = -tn.z; // this matches the object space, +X +Y +Z, export/baking in Blender with our trafo setup
+      return normalize((inverse(matView) * vec4(tn,0.0)).xyz);
+   } else // tangent space
+      return normalize((tn * TBN_trafo(N, V, uv)).xyz);  // !! The order of tn, and TBN_trainfo matters here?  Ship on FishTales gets blown out if you reverse them 
+}
+
+float GeometricOpacity(float NdotV, float alpha, vec4 cClearcoat_EdgeAlpha, vec4 Roughness_WrapL_Edge_Thickness /*, float blending, float t*/)
+{
+    // blending = cClearcoat_EdgeAlpha.w, no need to pass uniform
+    // t = Roughness_WrapL_Edge_Thickness.w, no need to pass uniform
+    //old version without thickness
+    //return mix(alpha, 1.0, blending*pow(1.0-abs(NdotV),5)); // fresnel for falloff towards silhouette
+
+    //new version (COD/IW, t = thickness), t = 0.05 roughly corresponds to above version
+    float x = abs(NdotV); // flip normal in case of wrong orientation (backside lighting)
+
+    float g = cClearcoat_EdgeAlpha.w - cClearcoat_EdgeAlpha.w * ( x / (x * (1.0 - Roughness_WrapL_Edge_Thickness.w ) + Roughness_WrapL_Edge_Thickness.w) ); // Smith-Schlick G
+    return mix(alpha, 1.0, g); // fake opacity lerp to ‘shadowed’
+}
+
+vec3 lightLoop(vec3 pos, vec3 N, vec3 V, vec3 diffuse, vec3 glossy, vec3 specular, float edge, bool fix_normal_orientation, bool is_metal) // input vectors (N,V) are normalized for BRDF evals
+{
+   // normalize BRDF layer inputs //!! use diffuse = (1-glossy)*diffuse instead?
+   float diffuseMax = max(diffuse.x,max(diffuse.y,diffuse.z));
+   float glossyMax = max(glossy.x,max(glossy.y,glossy.z));
+   float specularMax = max(specular.x,max(specular.y,specular.z)); //!! not needed as 2nd layer only so far
+   float sum = diffuseMax + glossyMax /*+ specularMax*/;
+   if(sum > 1.0)
+   {
+      float invsum = 1.0/sum;
+      diffuse  *= invsum;
+      glossy   *= invsum;
+      //specular *= invsum;
+   }
+
+   float NdotV = dot(N,V);
+   if(fix_normal_orientation && (NdotV < 0.0)) // flip normal in case of wrong orientation? (backside lighting), currently disabled if normal mapping active, for that case we should actually clamp the normal with respect to V instead (see f.e. 'view-dependant shading normal adaptation')
+   {
+      N = -N;
+	  NdotV = -NdotV;
+   }
+
+   vec3 color = vec3(0.0, 0.0, 0.0);
+
+   // 1st Layer
+    if((!is_metal && (diffuseMax > 0.0)) || (glossyMax > 0.0))
+    {
+        for(int i = 0; i < lightSources; i++)//Rendering issues when doing this in an loop. Weird.
+            color += DoPointLight(pos, N, V, diffuse, glossy, edge, i, is_metal); // no clearcoat needed as only pointlights so far
+    }
+
+   if(!is_metal && (diffuseMax > 0.0))
+      color += DoEnvmapDiffuse(normalize((vec4(N,0.0) * matView).xyz), diffuse); // trafo back to world for lookup into world space envmap // actually: mul(vec4(N,0.0), matViewInverseInverseTranspose), but optimized to save one matrix
+
+   if((glossyMax > 0.0) || (specularMax > 0.0))
+   {  
+	   vec3 R = (2.0*NdotV)*N - V; // reflect(-V,n);
+	   R = normalize((vec4(R,0.0) * matView).xyz); // trafo back to world for lookup into world space envmap // actually: mul(vec4(R,0.0), matViewInverseInverseTranspose), but optimized to save one matrix
+
+	   vec2 Ruv = vec2( // remap to 2D envmap coords
+			0.5 + atan2_approx_div2PI(R.y, R.x),
+			acos_approx_divPI(R.z));
+          
+      // Abuse mipmaps to reduce shimmering in VR
+      vec4 colorMip;
+      if (is_metal)
+      {
+         // Use low-res mipmap for metallic objects to reduce shimmering in VR
+         // Closer objects we query the lod and add 2 to make it a bit blurrier but always at least 6.0
+         // Far away objects we get smallest lod and divide by 1.6 which is a good trade-off between "metallic enough" and "low shimmer"
+         //float mipLevel = min(textureQueryLod(materials[draw_id_fs].texHandle, Ruv).y+2.0, textureQueryLevels(materials[draw_id_fs].texHandle)/1.6);
+         float mipLevel = 6.0;
+         if (mipLevel < 6.0)
+            mipLevel = 6.0;
+        // colorMip = textureLod(materials[draw_id_fs].texHandle, Ruv, mipLevel);
+      }
+      else
+      {
+         // For non-metallic objects we use different values
+         //colorMip = texture(materials[draw_id_fs].texHandle, Ruv);
+        // float mipLevel = min(textureQueryLod(materials[draw_id_fs].texHandle, Ruv).y, textureQueryLevels(materials[draw_id_fs].texHandle)/2);
+        float mipLevel = 4.0;
+         if (mipLevel < 4.0)
+            mipLevel = 4.0;
+        // colorMip = textureLod(materials[draw_id_fs].texHandle, Ruv, mipLevel);
+      }
+         
+      vec3 envTex;
+      if (!hdrEnvTextures)
+           envTex = InvGamma(colorMip.rgb);
+      else
+           envTex = colorMip.bgr;
+
+      // EnvmapGlossy
+	   if(glossyMax > 0.0)
+        color += glossy * envTex * fenvEmissionScale_TexWidth.x;
+
+      // Envmap2ndLayer
+	   if(fix_normal_orientation && specularMax > 0.0)
+      {
+        //vec3 w = FresnelSchlick(specular, NdotV, materials[draw_id_fs].Roughness_WrapL_Edge_Thickness.z);
+        //color = mix(color, envTex * fenvEmissionScale_TexWidth.x, w);
+      }
+   }
+
+   return /*Gamma(ToneMap(*/color/*))*/;
+}
+
+
+
+//------------------------------------
+//
+// Standard Materials
+//
+
+////vs_main
+
+layout (location=0) in vec3 vPosition;
+layout (location=1) in vec3 vNormal;
+layout (location=2) in vec2 tc;
+
+// NEW MULTIDRAW BIZ
+layout (location=10) in uint draw_id;
+
+out vec2 tex01_gs;
+out vec2 tex03_gs;
+out vec3 worldPos_gs;
+out vec3 normal_gs;
+out float gl_ClipDistance[1];
+flat out uint draw_id_gs;
+
+
+
+void main()
+{ 
+   gl_Position = vec4(vPosition, 1.0);
+   gl_ClipDistance[0] = dot(vPosition, vec3(0, 1, 0)); // For Render Dynamic Mirror when enabling clipping.
+   tex01_gs = tc;
+   vec4 bulbPos = (objMatrices[gl_DrawIDARB].matWorldViewProj[0]*vec4(vPosition, 1.0));
+   tex03_gs = vec2(bulbPos.xy/bulbPos.w);
+   worldPos_gs = (objMatrices[gl_DrawIDARB].matWorldView*vec4(vPosition, 1.0)).xyz;
+   normal_gs = normalize((objMatrices[gl_DrawIDARB].matWorldViewInverseTranspose* vec4(vNormal, 1) ).xyz);
+   draw_id_gs = gl_DrawIDARB;
+}
+
+////vs_notex_main
+
+layout (location=0) in vec3 vPosition;
+layout (location=1) in vec3 vNormal;
+layout (location=2) in vec2 tc;
+
+// NEW MULTIDRAW BIZ
+layout (location=10) in uint draw_id;
+
+out vec2 tex03_gs;
+out vec3 worldPos_gs;
+out vec3 normal_gs;
+out float gl_ClipDistance[1];
+flat out uint draw_id_gs;
+
+void main()
+{
+   gl_Position = vec4(vPosition, 1.0);
+   gl_ClipDistance[0] = dot(vPosition, vec3(0, 1, 0)); // For Render Dynamic Mirror when enabling clipping.
+   vec4 bulbPos = (objMatrices[draw_id].matWorldViewProj[0]*vec4(vPosition, 1.0));
+   tex03_gs = vec2(bulbPos.xy/bulbPos.w);
+   worldPos_gs = (objMatrices[draw_id].matWorldView*vec4(vPosition, 1.0)).xyz;
+   normal_gs = normalize((objMatrices[draw_id].matWorldViewInverseTranspose* vec4(vNormal, 1)).xyz);
+   draw_id_gs = draw_id;
+}
+
+////vs_depth_only_main_without_texture
+
+in vec3 vPosition;
+
+void main()
+{ 
+   gl_Position = vec4(vPosition, 1.0);
+}
+
+////vs_depth_only_main_with_texture
+
+in vec3 vPosition;
+in vec2 tc;
+
+out vec2 tex0_gs;
+
+void main()
+{
+   gl_Position = vec4(vPosition, 1.0);
+   tex0_gs = tc;
+}
+
+////gs_main
+
+in vec2 tex01_gs[];
+out vec2 tex01;
+
+in vec2 tex03_gs[];
+out vec2 tex03;
+
+in vec3 worldPos_gs[];
+out vec3 worldPos;
+
+in vec3 normal_gs[];
+out vec3 normal;
+
+flat in uint draw_id_gs[];
+flat out uint draw_id_fs;
+
+void main()
+{
+   gl_ViewportIndex = gl_InvocationID;
+   for (int i=0;i<gl_in.length();i++) {
+      //Default
+      gl_Position = (objMatrices[draw_id_gs[i]].matWorldViewProj[gl_InvocationID]*gl_in[i].gl_Position);
+      
+      gl_ClipDistance[0] = gl_in[i].gl_ClipDistance[0]; // For Render Dynamic Mirror when enabling clipping.
+      //Custom
+      tex01 = tex01_gs[i];
+      tex03 = tex03_gs[i];
+      worldPos = worldPos_gs[i];
+      normal = normal_gs[i];
+      draw_id_fs = draw_id_gs[i];
+      //Default
+      EmitVertex();
+   }
+   EndPrimitive();
+}
+
+////gs_notex_main
+
+in vec2 tex03_gs[];
+out vec2 tex03;
+
+in vec3 worldPos_gs[];
+out vec3 worldPos;
+
+in vec3 normal_gs[];
+out vec3 normal;
+
+flat in uint draw_id_gs[];
+flat out uint draw_id_fs;
+
+void main()
+{
+   gl_ViewportIndex = gl_InvocationID;
+   for (int i=0;i<gl_in.length();i++) {
+      //Default
+      gl_Position = (objMatrices[draw_id_gs[i]].matWorldViewProj[gl_InvocationID]*gl_in[i].gl_Position);
+      gl_ClipDistance[0] = gl_in[i].gl_ClipDistance[0];  // For Render Dynamic Mirror when enabling clipping.
+      //Custom
+      tex03 = tex03_gs[i];
+      worldPos = worldPos_gs[i];
+      normal = normal_gs[i];
+      draw_id_fs = draw_id_gs[i];
+      //Default
+      EmitVertex();
+   }
+   EndPrimitive();
+}
+
+////gs_kicker_main
+
+in vec2 tex03_gs[];
+out vec2 tex03;
+
+in vec3 worldPos_gs[];
+out vec3 worldPos;
+
+in vec3 normal_gs[];
+out vec3 normal;
+
+flat in uint draw_id_gs[];
+flat out uint draw_id_fs;
+
+void main()
+{
+   gl_ViewportIndex = gl_InvocationID;
+	for (int i=0;i<gl_in.length();i++) {
+		//Default
+      vec4 P2 = gl_in[i].gl_Position;
+      P2.z -= 30.0f*1.0f; // 1.0f = fKickerScale
+      gl_Position.xyw = (objMatrices[draw_id_gs[i]].matWorldViewProj[gl_InvocationID]*gl_in[i].gl_Position).xyw;
+      gl_Position.z = (objMatrices[draw_id_gs[i]].matWorldViewProj[gl_InvocationID]*P2).z;
+		//Custom
+      tex03 = tex03_gs[i];
+		worldPos = worldPos_gs[i];
+		normal = normal_gs[i];
+        draw_id_fs = draw_id_gs[i];
+		//Default
+		EmitVertex();
+	}
+   EndPrimitive();
+}
+
+////gs_depth_only_main_without_texture
+
+flat in uint draw_id_gs[];
+flat out uint draw_id_fs;
+
+void main()
+{
+   gl_ViewportIndex = gl_InvocationID;
+	for (int i=0;i<gl_in.length();i++) {
+		//Default
+      gl_Position = (objMatrices[draw_id_gs[i]].matWorldViewProj[gl_InvocationID]*gl_in[i].gl_Position);;
+		//Custom
+        draw_id_fs = draw_id_gs[i];
+		//Default
+		EmitVertex();
+	}
+    EndPrimitive();
+}
+
+////gs_depth_only_main_with_texture
+
+in vec2 tex0_gs[];
+out vec2 tex0;
+
+flat in uint draw_id_gs[];
+flat out uint draw_id_fs;
+
+void main()
+{
+   gl_ViewportIndex = gl_InvocationID;
+	for (int i=0;i<gl_in.length();i++) {
+		//Default
+      gl_Position = (objMatrices[draw_id_gs[i]].matWorldViewProj[gl_InvocationID]*gl_in[i].gl_Position);
+		//Custom
+		tex0 = tex0_gs[i];
+        draw_id_fs = draw_id_gs[i];
+		//Default
+		EmitVertex();
+	}
+    EndPrimitive();
+}
+
+////ps_main_notex
+
+in vec2 tex03;
+in vec3 worldPos;
+in vec3 normal;
+//flat in uint draw_id_fs;
+
+
+void main() {
+   //vec3 diffuse  = materials[draw_id_fs].cBase_Alpha.xyz;
+   //vec3 glossy   = materials[draw_id_fs].is_metal ? materials[draw_id_fs].cBase_Alpha.xyz : materials[draw_id_fs].cGlossy_ImageLerp.xyz*0.08;
+   //vec3 specular = materials[draw_id_fs].cClearcoat_EdgeAlpha.xyz*0.08;
+   //float edge    = materials[draw_id_fs].is_metal ? 1.0 : materials[draw_id_fs].Roughness_WrapL_Edge_Thickness.z;
+   
+   //vec3 V = normalize(-worldPos);
+   //vec3 N = normalize(normal);
+
+   //color = vec4((N+1.0)*0.5,1.0); return; // visualize normals
+
+   //color.xyz = lightLoop(worldPos, N, V, diffuse, glossy, specular, edge, true, is_metal); //!! have a "real" view vector instead that mustn't assume that viewer is directly in front of monitor? (e.g. cab setup) -> viewer is always relative to playfield and/or user definable
+   //color.a = clamp(materials[draw_id_fs].cBase_Alpha.a, 0.0, 1.0);
+
+   //if(materials[draw_id_fs].cBase_Alpha.a < 1.0) {
+     // color.a = GeometricOpacity(max(dot(N,V), 0.0), color.a);
+
+   //   if (fDisableLighting_top_below.y < 1.0)
+          // add light from "below" from user-flagged bulb lights, pre-rendered/blurred in previous renderpass //!! sqrt = magic
+   //       color.xyz += mix(sqrt(diffuse)*texture(Texture3, vec2(0.5*tex03.xy)+0.5, 0).xyz*color.a, vec3(0.), fDisableLighting_top_below.y); //!! depend on normal of light (unknown though) vs geom normal, too?
+    //  }  
+}
+
+////ps_main_texture
+
+in vec2 tex01;
+in vec2 tex03;
+in vec3 worldPos;
+in vec3 normal;
+//flat in uint draw_id_fs; // declared above helper functions instead of here
+
+void main() {
+    
+    // material data
+    vec4 pixel = texture(materials[draw_id_fs].texHandle, tex01);
+    //vec4 texCoordDebug = vec4(tex01, 0, 1); 
+
+    vec4 cClearcoat_EdgeAlpha = materials[draw_id_fs].AZDO_cClearcoat_EdgeAlpha;
+    vec4 cGlossy_ImageLerp = materials[draw_id_fs].AZDO_cGlossy_ImageLerp;
+    vec4 cBase_Alpha = materials[draw_id_fs].AZDO_cBase_Alpha;
+    vec4 Roughness_WrapL_Edge_Thickness = materials[draw_id_fs].AZDO_Roughness_WrapL_Edge_Thickness;
+
+    float alphaTestValue = materials[draw_id_fs].AZDO_alphaTestValue;
+
+    bool hdrEnvTextures = bool(materials[draw_id_fs].AZDO_hdrEnvTextures); 
+    bool objectSpaceNormalMap = bool(materials[draw_id_fs].AZDO_objectSpaceNormalMap);
+    bool is_metal = bool(materials[draw_id_fs].AZDO_is_metal);
+    bool doNormalMapping = bool(materials[draw_id_fs].AZDO_doNormalMapping);
+
+
+    // OLD
+   //vec4 pixel = texture(Texture0, tex01);
+
+
+
+   if (pixel.a <= alphaTestValue)
+      discard;           //stop the pixel shader if alpha test should reject pixel
+
+   vec3 t = InvGamma(pixel.xyz);
+
+   vec3 diffuse  = t*cBase_Alpha.xyz;
+   vec3 glossy   = is_metal ? diffuse : (t*cGlossy_ImageLerp.w + (1.0-cGlossy_ImageLerp.w))*cGlossy_ImageLerp.xyz*0.08; //!! use AO for glossy? specular?
+   vec3 specular = cClearcoat_EdgeAlpha.xyz*0.08;
+   float edge    = is_metal ? 1.0 : Roughness_WrapL_Edge_Thickness.z;
+
+   vec3 V = normalize(-worldPos);
+   vec3 N = normalize(normal);
+
+   //if (materials[draw_id_fs].doNormalMapping)
+	 // N = normal_map(N, normalize(worldPos), tex01);
+   
+   //color = vec4((N+1.0)*0.5,1.0); return; // visualize normals
+
+
+
+   //color.xyz = lightLoop(worldPos, N, V, diffuse, glossy, specular, edge, !doNormalMapping, is_metal);
+   color.a = clamp(pixel.a * cBase_Alpha.a, 0.0, 1.0);
+
+   if (cBase_Alpha.a < 1.0 && color.a < 1.0) {
+      color.a = GeometricOpacity(max(dot(N,V), 0.0), color.a, cClearcoat_EdgeAlpha, Roughness_WrapL_Edge_Thickness);
+
+     // if (fDisableLighting_top_below.y < 1.0)
+     // {
+         // add light from "below" from user-flagged bulb lights, pre-rendered/blurred in previous renderpass //!! sqrt = magic
+
+         // CURRENTLY USING WRONG TEX ('Texture0', instead of the correct 'Texture3' so will look wrong but should run for now)
+       //  color.xyz += mix(sqrt(diffuse)*texture(materials[draw_id_fs].texHandle, vec2(0.5*tex03.xy)+0.5).xyz*color.a, vec3(0.), fDisableLighting_top_below.y); //!! depend on normal of light (unknown though) vs geom normal, too?
+     // }
+   }
+
+   //vec4 pixel2 = texture(sampler2D(materials[draw_id_fs].texHandle), tex01); // declaring texHandle as uvec2 in struct and converting here works but is unnecessary
+   //color = vec4(tex01, 0, 0.3);
+   //color = vec4(0,0,0.75,0.3); //green for debugging
+   //color = vec4(texCoordDebug.xyz, 0.4);
+   //color = vec4(pixel.xyz, 0.9);
+   //color = vec4(pixel2.xyz, 0.9);
+
+   color.xyz = pixel.xyz;
+}
+
+////ps_main_depth_only_without_texture
+
+void main() {
+    color =  vec4(0.,0.,0.,1.);
+}
+
+////ps_main_depth_only_with_texture
+
+in vec2 tex0;
+
+void main() {
+   // COMMENTED OUT FOR DEBUGGING
+   //if (textureLod(Texture0, tex0, 0).a <= alphaTestValue)
+   //   discard;           //stop the pixel shader if alpha test should reject pixel
+
+   color = vec4(0., 0., 0., 1.);
+}
+
+////ps_main_bg_decal
+
+// BG-Decal
+
+void main() {
+   // COMMENTED OUT FOR DEBUGGING
+   //color = vec4(InvToneMap(cBase_Alpha.xyz), clamp(cBase_Alpha.a, 0.0, 1.0));
+   color = vec4(0., 0., 0., 1.);
+}
+
+////ps_main_bg_decal_texture
+
+in vec2 tex01;
+
+void main() {
+   //vec4 pixel = texture(Texture0, tex01);
+
+   // THIS LINE ALWAYS COMMENTED OUT, ALL OTHERS FOR DEBUGGING
+   //if (pixel.a <= alphaTestValue) discard;
+
+   // pixel.a = clamp(pixel.a * cBase_Alpha.a, 0.0, 1.0);
+   //float3 t = InvGamma(pixel.xyz); // DX9: uses automatic sRGB trafo instead in sampler! - still missing in OpenGL so we still need InvGamma
+
+   //color = vec4(InvToneMap(t*cBase_Alpha.xyz), pixel.a);
+   color = vec4(0., 0., 0., 1.);
+}
+
+
+//------------------------------------------
+// Kicker boolean vertex shader
+
+////vs_kicker
+
+in vec3 vPosition;
+in vec3 vNormal;
+in vec2 tc;
+in uint draw_id;
+
+out vec3 worldPos_gs;
+out vec3 normal_gs;
+out vec2 tex03_gs;
+out flat uint draw_id_gs;
+
+void main() {
+	vec4 vPosition4 = vec4(vPosition,1.0);
+   gl_Position = vPosition4;
+   vec4 bulbPos = (objMatrices[draw_id].matWorldViewProj[0]*vec4(vPosition, 1.0));
+   tex03_gs = vec2(bulbPos.xy/bulbPos.w);
+   worldPos_gs = (objMatrices[draw_id].matWorldView * vPosition4).xyz;
+   normal_gs = normalize((objMatrices[draw_id].matWorldViewInverseTranspose* vec4(vNormal, 1)).xyz);
+   draw_id_gs = draw_id;
+}
+
+//------------------------------------
+// Techniques
+//
+
+//
+// Standard Materials
+//
+////TECHNIQUES
+
+basic_without_texture:P0:vs_notex_main():gs_notex_main():ps_main_notex()
+
+basic_with_texture:P0:vs_main():gs_main():ps_main_texture()
+
+basic_depth_only_without_texture:P0:vs_depth_only_main_without_texture():gs_depth_only_main_without_texture():ps_main_depth_only_without_texture()
+basic_depth_only_with_texture:P0:vs_depth_only_main_with_texture():gs_depth_only_main_with_texture():ps_main_depth_only_with_texture()
+
+//
+// BG-Decal
+//
+
+bg_decal_without_texture:P0:vs_notex_main():gs_notex_main():ps_main_bg_decal()
+bg_decal_with_texture:P0:vs_main():gs_main():ps_main_bg_decal_texture()
+
+//
+// Kicker
+//
+
+kickerBoolean:P0:vs_kicker():gs_kicker_main():ps_main_notex()
+
+//#include "ClassicLightShader.glfx"

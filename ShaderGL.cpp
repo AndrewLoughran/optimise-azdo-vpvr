@@ -13,7 +13,7 @@
 
 #ifdef _DEBUG
 //Writes all compile/parse errors/warnings to a file. (0=never, 1=only errors, 2=warnings, 3=info)
-#define DEBUG_LEVEL_LOG 1
+#define DEBUG_LEVEL_LOG 0
 //Writes all shaders that are compiled to separate files (e.g. ShaderName_Technique_Pass.vs and .fs) (0=never, 1=only if compile failed, 2=always)
 #define WRITE_SHADER_FILES 1
 #else 
@@ -130,19 +130,24 @@ Shader::~Shader()
 
 
 void Shader::LOG(int level, const char* fileNameRoot, string message) {
+    //char str2[1024];
+    //sprintf(str2, "Debug callback function call!");
+    OutputDebugString(message.c_str());
 #if (DEBUG_LEVEL_LOG>0)
    if (level <= DEBUG_LEVEL_LOG) {
       if (!logFile && fileNameRoot) {
-         string name = Shader::shaderPath;
+         //string name = Shader::shaderPath;
+         string name = "C:\\Users\\Andrew\\Desktop\\";
          name.append("log\\").append(fileNameRoot).append(".log");
-         logFile = new std::ofstream();
-         logFile->open(name);
+         logFile = new std::ofstream(name, std::ofstream::out | std::ofstream::app);
+         //logFile->open(name);
          if (!logFile->is_open()) {
             char msg[512];
             TCHAR full_path[MAX_PATH];
             GetFullPathName(_T(name.c_str()), MAX_PATH, full_path, NULL);
             sprintf_s(msg, 512, "could not create logfile %s", full_path);
             ShowError(msg);
+            return;
          }
       }
       switch (level) {
@@ -679,6 +684,171 @@ void Shader::setAttributeFormat(DWORD fvf)
       CHECKD3D(glVertexAttribPointer(currentAttribute.location, currentAttribute.size, GL_FLOAT, GL_FALSE, (fvf == MY_D3DFVF_TEX) ? 20 : 32, (void*)offset));
    }
 #endif
+}
+
+void Shader::BeginMulti(GLuint* debugTex) {
+    m_currentTechnique = &shaderList[technique];
+    glUseProgram(m_currentTechnique->program);
+
+    // UNIFORMS
+    Matrix3D viewMatrix;
+    Shader::GetTransform(TRANSFORMSTATE_VIEW, &viewMatrix, 1);
+    glUniformMatrix4fv(glGetUniformLocation(m_currentTechnique->program, "matView"), 1, GL_FALSE, (float*)&viewMatrix);
+
+    glBindTextureUnit(0, *debugTex);
+    glUniform1i(glGetUniformLocation(m_currentTechnique->program, "Texture0"), 0);
+
+    // DEBUG
+
+    glValidateProgram(m_currentTechnique->program);
+    GLint valid;
+    glGetProgramiv(m_currentTechnique->program, GL_VALIDATE_STATUS, &valid);
+    if (!valid) {
+        OutputDebugString("shader invalid!");
+    }
+    /*
+    GLint numBlocks = 0;
+    glGetProgramInterfaceiv(m_currentTechnique->program, GL_UNIFORM_BLOCK, GL_ACTIVE_RESOURCES, &numBlocks);
+    const GLenum blockProperties[1] = { GL_NUM_ACTIVE_VARIABLES };
+    const GLenum activeUnifProp[1] = { GL_ACTIVE_VARIABLES };
+    const GLenum unifProperties[1] = { GL_BUFFER_DATA_SIZE };
+
+    for (int blockIx = 0; blockIx < numBlocks; ++blockIx)
+    {
+        GLint bufferDataSize = 0;
+        glGetProgramResourceiv(m_currentTechnique->program, GL_UNIFORM_BLOCK, blockIx, 1, unifProperties, 1, NULL, &bufferDataSize);
+
+        
+
+        //std::vector<GLint> blockUnifs(numActiveUnifs);
+        //glGetProgramResourceiv(m_currentTechnique->program, GL_UNIFORM_BLOCK, blockIx, 1, activeUnifProp, numActiveUnifs, NULL, &blockUnifs[0]);
+
+        //for (int unifIx = 0; unifIx < numActiveUnifs; ++unifIx)
+        //{
+        //    GLint values;
+        //    glGetProgramResourceiv(m_currentTechnique->program, GL_UNIFORM, blockUnifs[unifIx], 3, unifProperties, 3, NULL, &value);
+
+        //    // Get the name. Must use a std::vector rather than a std::string for C++03 standards issues.
+        //    // C++11 would let you use a std::string directly.
+        //    std::vector<char> nameData(values[0]);
+        //    glGetProgramResourceName(m_currentTechnique->program, GL_UNIFORM, blockUnifs[unifIx], nameData.size(), NULL, &nameData[0]);
+        //    std::string name(nameData.begin(), nameData.end() - 1);
+        //}
+    }
+    //GLuint blockIndex;
+    //GLuint blockIndices[1];
+    const GLchar* blockName = "MATERIAL_BLOCK";
+    //const GLchar* blockNames[1] = { blockName };
+    GLuint blockIndex, blockSize;
+    const int block_sz = 22;
+    int blockDataSize;
+    const char* matBlockNames[block_sz] = { 
+
+        "materials[0].texHandle", 
+        //"materials[0].paddingHandle", 
+
+        "materials[0].AZDO_alphaTestValue", 
+        "materials[0].padding1", 
+
+        "materials[0].AZDO_cClearcoat_EdgeAlpha", 
+        "materials[0].AZDO_cGlossy_ImageLerp",
+        "materials[0].AZDO_cBase_Alpha",
+        "materials[0].AZDO_Roughness_WrapL_Edge_Thickness", 
+
+
+        "materials[0].AZDO_hdrEnvTextures", 
+        "materials[0].AZDO_objectSpaceNormalMap", 
+        "materials[0].AZDO_is_metal", 
+        "materials[0].AZDO_doNormalMapping", 
+
+        "materials[1].texHandle",
+        //"materials[1].paddingHandle", 
+
+        "materials[1].AZDO_alphaTestValue",
+        "materials[1].padding1",
+
+        "materials[1].AZDO_cClearcoat_EdgeAlpha",      
+        "materials[1].AZDO_cGlossy_ImageLerp",
+        "materials[1].AZDO_cBase_Alpha",
+        "materials[1].AZDO_Roughness_WrapL_Edge_Thickness", 
+
+ 
+
+        "materials[1].AZDO_hdrEnvTextures",        
+        "materials[1].AZDO_objectSpaceNormalMap", 
+        "materials[1].AZDO_is_metal", 
+        "materials[1].AZDO_doNormalMapping" 
+    };
+    static GLuint index[block_sz];
+    static int    offset[block_sz];
+
+    blockIndex = glGetUniformBlockIndex(m_currentTechnique->program, blockName);
+    if (blockIndex != GL_INVALID_INDEX) {
+        glGetActiveUniformBlockiv(m_currentTechnique->program, blockIndex, GL_UNIFORM_BLOCK_DATA_SIZE, &blockDataSize); // this value is the bytes used BEFORE end of struct padding i believe
+        glGetUniformIndices(m_currentTechnique->program, block_sz, matBlockNames, index);
+        glGetActiveUniformsiv(m_currentTechnique->program, block_sz, index, GL_UNIFORM_OFFSET, offset);
+    }
+    */
+
+    // SSBO DEBUG INTERFACE
+
+    GLint no_of, ssbo_max_len, var_max_len;
+    glGetProgramInterfaceiv(m_currentTechnique->program, GL_SHADER_STORAGE_BLOCK, GL_ACTIVE_RESOURCES, &no_of);
+    glGetProgramInterfaceiv(m_currentTechnique->program, GL_SHADER_STORAGE_BLOCK, GL_MAX_NAME_LENGTH, &ssbo_max_len);
+    glGetProgramInterfaceiv(m_currentTechnique->program, GL_BUFFER_VARIABLE, GL_MAX_NAME_LENGTH, &var_max_len);
+
+    std::vector< GLchar >name(var_max_len);
+    for (int i_resource = 0; i_resource < no_of; i_resource++) {
+
+        // get name of the shader storage block
+        GLsizei strLength;
+        glGetProgramResourceName(
+            m_currentTechnique->program, GL_SHADER_STORAGE_BLOCK, i_resource, ssbo_max_len, &strLength, name.data());
+
+        // get resource index of the shader storage block
+        GLint resInx = glGetProgramResourceIndex(m_currentTechnique->program, GL_SHADER_STORAGE_BLOCK, name.data());
+
+        // get number of the buffer variables in the shader storage block
+        GLenum prop = GL_NUM_ACTIVE_VARIABLES;
+        GLint num_var;
+        glGetProgramResourceiv(
+            m_currentTechnique->program, GL_SHADER_STORAGE_BLOCK, resInx, 1, &prop,
+            1, nullptr, &num_var);
+
+        // get resource indices of the buffer variables
+        std::vector<GLint> vars(num_var);
+        prop = GL_ACTIVE_VARIABLES;
+        glGetProgramResourceiv(
+            m_currentTechnique->program, GL_SHADER_STORAGE_BLOCK, resInx,
+            1, &prop, (GLsizei)vars.size(), nullptr, vars.data());
+
+        std::vector<GLint> offsets(num_var);
+        std::vector<std::string> var_names(num_var);
+        for (GLint i = 0; i < num_var; i++) {
+
+            // get offset of buffer variable relative to SSBO
+            GLenum prop = GL_OFFSET;
+            glGetProgramResourceiv(
+                m_currentTechnique->program, GL_BUFFER_VARIABLE, vars[i],
+                1, &prop, (GLsizei)offsets.size(), nullptr, &offsets[i]);
+
+            // get name of buffer variable
+            std::vector<GLchar>var_name(var_max_len);
+            GLsizei strLength;
+            glGetProgramResourceName(
+                m_currentTechnique->program, GL_BUFFER_VARIABLE, vars[i],
+                var_max_len, &strLength, var_name.data());
+            var_names[i] = var_name.data();
+        }
+    }
+    //GLint params;
+    //glGetActiveUniformsiv(m_currentTechnique->program, 1, blockIndices, GL_UNIFORM_ARRAY_STRIDE, &params);
+    // UNIFORM BLOCKS
+    // MATRICES_BLOCK
+    
+    //glUniformBlockBinding(m_currentTechnique->program, glGetUniformBlockIndex(m_currentTechnique->program, "MATRICES_BLOCK"), 0);
+    // binding not needed? can be set explicitly in shader?
+    // MATERIAL_BLOCK
 }
 
 void Shader::Begin(const unsigned int pass)

@@ -23,6 +23,9 @@ public:
    static void CreateVertexBuffer(const unsigned int vertexCount, const DWORD usage, const DWORD fvf, VertexBuffer **vBuffer);
 
    GLuint getOffset() const { return offset; }
+   GLuint getCount() const { return count; }
+   void* getBuffer() const { return dataBuffer; }
+   DWORD getFvf() const { return fvf; }
    static void UploadBuffers();
 private:
    GLuint count;

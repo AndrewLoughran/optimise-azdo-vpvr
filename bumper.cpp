@@ -7,6 +7,7 @@
 #include "Shader.h"
 #include "IndexBuffer.h"
 #include "VertexBuffer.h"
+#include "hitable.h"
 
 Bumper::Bumper()
 {
@@ -55,7 +56,7 @@ Bumper::~Bumper()
       m_ringIndexBuffer->release();
       m_ringIndexBuffer = 0;
       m_ringTexture.FreeStuff();
-      delete[] m_ringVertices;
+      //delete[] m_ringVertices;
       m_ringVertices = 0;
    }
    if (m_capIndexBuffer)
@@ -304,7 +305,7 @@ void Bumper::EndPlay()
       m_ringIndexBuffer->release();
       m_ringIndexBuffer = 0;
       m_ringTexture.FreeStuff();
-      delete[] m_ringVertices;
+      //delete[] m_ringVertices;
       m_ringVertices = 0;
    }
    if (m_capIndexBuffer)
@@ -590,7 +591,7 @@ void Bumper::ExportMesh(FILE *f)
       const Material * mat = m_ptable->GetMaterial(m_d.m_szBaseMaterial);
       WaveFrontObj_WriteMaterial(m_d.m_szBaseMaterial, NULL, mat);
       WaveFrontObj_UseTexture(f, m_d.m_szBaseMaterial);
-      WaveFrontObj_WriteFaceInfoList(f, bumperBaseIndices, bumperBaseNumIndices);
+      WaveFrontObj_WriteFaceInfoList(f, (WORD*)bumperBaseIndices, bumperBaseNumIndices); // (WORD*) conversion may cause a problem
       WaveFrontObj_UpdateFaceOffset(bumperBaseNumVertices);
       delete[] base;
    }
@@ -603,7 +604,7 @@ void Bumper::ExportMesh(FILE *f)
 
       GenerateRingMesh(ring);
       WaveFrontObj_WriteVertexInfo(f, ring, bumperRingNumVertices);
-      WaveFrontObj_WriteFaceInfoList(f, bumperRingIndices, bumperRingNumIndices);
+      WaveFrontObj_WriteFaceInfoList(f, (WORD*)bumperRingIndices, bumperRingNumIndices);
       WaveFrontObj_UpdateFaceOffset(bumperRingNumVertices);
       delete[] ring;
    }
@@ -619,7 +620,7 @@ void Bumper::ExportMesh(FILE *f)
       const Material * mat = m_ptable->GetMaterial(m_d.m_szSkirtMaterial);
       WaveFrontObj_WriteMaterial(m_d.m_szSkirtMaterial, NULL, mat);
       WaveFrontObj_UseTexture(f, m_d.m_szSkirtMaterial);
-      WaveFrontObj_WriteFaceInfoList(f, bumperSocketIndices, bumperSocketNumIndices);
+      WaveFrontObj_WriteFaceInfoList(f, (WORD*)bumperSocketIndices, bumperSocketNumIndices);
       WaveFrontObj_UpdateFaceOffset(bumperSocketNumVertices);
       delete[] socket;
    }
@@ -635,7 +636,7 @@ void Bumper::ExportMesh(FILE *f)
       const Material * const mat = m_ptable->GetMaterial(m_d.m_szCapMaterial);
       WaveFrontObj_WriteMaterial(m_d.m_szCapMaterial, NULL, mat);
       WaveFrontObj_UseTexture(f, m_d.m_szCapMaterial);
-      WaveFrontObj_WriteFaceInfoList(f, bumperCapIndices, bumperCapNumIndices);
+      WaveFrontObj_WriteFaceInfoList(f, (WORD*)bumperCapIndices, bumperCapNumIndices);
       WaveFrontObj_UpdateFaceOffset(bumperCapNumVertices);
       delete[] cap;
    }
@@ -643,22 +644,50 @@ void Bumper::ExportMesh(FILE *f)
 
 void Bumper::GenerateBaseMesh(Vertex3D_NoTex2 *buf)
 {
+
+   //const float scalexy = m_d.m_radius;
+   //for (int i = 0; i < bumperBaseNumVertices; i++)
+   //{
+   //   Vertex3Ds vert(bumperBase[i].x, bumperBase[i].y, bumperBase[i].z);
+   //   vert = m_fullMatrix.MultiplyVector(vert);
+   //   buf[i].x = vert.x*scalexy + m_d.m_vCenter.x;
+   //   buf[i].y = vert.y*scalexy + m_d.m_vCenter.y;
+   //   buf[i].z = vert.z*(m_d.m_heightScale*m_ptable->m_BG_scalez[m_ptable->m_BG_current_set]) + m_baseHeight;
+
+   //   vert = Vertex3Ds(bumperBase[i].nx, bumperBase[i].ny, bumperBase[i].nz);
+   //   vert = m_fullMatrix.MultiplyVectorNoTranslate(vert);
+   //   buf[i].nx = vert.x;
+   //   buf[i].ny = vert.y;
+   //   buf[i].nz = vert.z;
+   //   buf[i].tu = bumperBase[i].tu;
+   //   buf[i].tv = bumperBase[i].tv;
+   //}
+
+    SetWorldMatrix(&m_worldMatrix_Base,
+        Vertex3Ds(m_d.m_radius, m_d.m_radius, m_d.m_heightScale * m_ptable->m_BG_scalez[m_ptable->m_BG_current_set]),
+        Vertex3Ds(0.0f, 0.0f, 0.0f),
+        Vertex3Ds(m_d.m_vCenter.x, m_d.m_vCenter.y, m_baseHeight)
+
+    );
+
+
+
    const float scalexy = m_d.m_radius;
    for (int i = 0; i < bumperBaseNumVertices; i++)
    {
-      Vertex3Ds vert(bumperBase[i].x, bumperBase[i].y, bumperBase[i].z);
-      vert = m_fullMatrix.MultiplyVector(vert);
-      buf[i].x = vert.x*scalexy + m_d.m_vCenter.x;
-      buf[i].y = vert.y*scalexy + m_d.m_vCenter.y;
-      buf[i].z = vert.z*(m_d.m_heightScale*m_ptable->m_BG_scalez[m_ptable->m_BG_current_set]) + m_baseHeight;
+       Vertex3Ds vert(bumperBase[i].x, bumperBase[i].y, bumperBase[i].z);
+       vert = m_fullMatrix.MultiplyVector(vert);
+       buf[i].x = vert.x;
+       buf[i].y = vert.y;
+       buf[i].z = vert.z;
 
-      vert = Vertex3Ds(bumperBase[i].nx, bumperBase[i].ny, bumperBase[i].nz);
-      vert = m_fullMatrix.MultiplyVectorNoTranslate(vert);
-      buf[i].nx = vert.x;
-      buf[i].ny = vert.y;
-      buf[i].nz = vert.z;
-      buf[i].tu = bumperBase[i].tu;
-      buf[i].tv = bumperBase[i].tv;
+       vert = Vertex3Ds(bumperBase[i].nx, bumperBase[i].ny, bumperBase[i].nz);
+       vert = m_fullMatrix.MultiplyVectorNoTranslate(vert);
+       buf[i].nx = vert.x;
+       buf[i].ny = vert.y;
+       buf[i].nz = vert.z;
+       buf[i].tu = bumperBase[i].tu;
+       buf[i].tv = bumperBase[i].tv;
    }
 }
 
@@ -666,13 +695,39 @@ void Bumper::GenerateSocketMesh(Vertex3D_NoTex2 *buf)
 {
    const float scalexy = m_d.m_radius;
 
+   //for (int i = 0; i < bumperSocketNumVertices; i++)
+   //{
+   //   Vertex3Ds vert(bumperSocket[i].x, bumperSocket[i].y, bumperSocket[i].z);
+   //   vert = m_fullMatrix.MultiplyVector(vert);
+   //   buf[i].x = vert.x*scalexy + m_d.m_vCenter.x;
+   //   buf[i].y = vert.y*scalexy + m_d.m_vCenter.y;
+   //   buf[i].z = vert.z*(m_d.m_heightScale*m_ptable->m_BG_scalez[m_ptable->m_BG_current_set]) + (m_baseHeight + 5.0f);
+
+   //   vert = Vertex3Ds(bumperSocket[i].nx, bumperSocket[i].ny, bumperSocket[i].nz);
+   //   vert = m_fullMatrix.MultiplyVectorNoTranslate(vert);
+   //   buf[i].nx = vert.x;
+   //   buf[i].ny = vert.y;
+   //   buf[i].nz = vert.z;
+   //   buf[i].tu = bumperSocket[i].tu;
+   //   buf[i].tv = bumperSocket[i].tv;
+   //}
+
+    SetWorldMatrix(&m_worldMatrix_Skirt,
+        Vertex3Ds(scalexy, scalexy, m_d.m_heightScale * m_ptable->m_BG_scalez[m_ptable->m_BG_current_set]),
+        Vertex3Ds(0.0f, 0.0f, 0.0f),
+        Vertex3Ds(m_d.m_vCenter.x, m_d.m_vCenter.y, m_baseHeight + 5.0f)
+
+    );
+
+   
+
    for (int i = 0; i < bumperSocketNumVertices; i++)
    {
       Vertex3Ds vert(bumperSocket[i].x, bumperSocket[i].y, bumperSocket[i].z);
-      vert = m_fullMatrix.MultiplyVector(vert);
-      buf[i].x = vert.x*scalexy + m_d.m_vCenter.x;
-      buf[i].y = vert.y*scalexy + m_d.m_vCenter.y;
-      buf[i].z = vert.z*(m_d.m_heightScale*m_ptable->m_BG_scalez[m_ptable->m_BG_current_set]) + (m_baseHeight + 5.0f);
+      vert = m_fullMatrix.MultiplyVector(vert);  // orientation, pass as rotation Z above?
+      buf[i].x = vert.x;
+      buf[i].y = vert.y;
+      buf[i].z = vert.z;
 
       vert = Vertex3Ds(bumperSocket[i].nx, bumperSocket[i].ny, bumperSocket[i].nz);
       vert = m_fullMatrix.MultiplyVectorNoTranslate(vert);
@@ -686,15 +741,41 @@ void Bumper::GenerateSocketMesh(Vertex3D_NoTex2 *buf)
 
 void Bumper::GenerateRingMesh(Vertex3D_NoTex2 *buf)
 {
+
+
    const float scalexy = m_d.m_radius;
+
+   //for (int i = 0; i < bumperRingNumVertices; i++)
+   //{
+   //   Vertex3Ds vert(bumperRing[i].x, bumperRing[i].y, bumperRing[i].z);
+   //   vert = m_fullMatrix.MultiplyVector(vert);
+   //   buf[i].x = vert.x*scalexy + m_d.m_vCenter.x;
+   //   buf[i].y = vert.y*scalexy + m_d.m_vCenter.y;
+   //   buf[i].z = vert.z*(m_d.m_heightScale*m_ptable->m_BG_scalez[m_ptable->m_BG_current_set]) + m_baseHeight;
+
+   //   vert = Vertex3Ds(bumperRing[i].nx, bumperRing[i].ny, bumperRing[i].nz);
+   //   vert = m_fullMatrix.MultiplyVectorNoTranslate(vert);
+   //   buf[i].nx = vert.x;
+   //   buf[i].ny = vert.y;
+   //   buf[i].nz = vert.z;
+   //   buf[i].tu = bumperRing[i].tu;
+   //   buf[i].tv = bumperRing[i].tv;
+   //}
+
+    SetWorldMatrix(&m_worldMatrix_Ring,
+        Vertex3Ds(scalexy, scalexy, m_d.m_heightScale * m_ptable->m_BG_scalez[m_ptable->m_BG_current_set]),
+        Vertex3Ds(0.0f, 0.0f, 0.0f),
+        Vertex3Ds(m_d.m_vCenter.x, m_d.m_vCenter.y, m_baseHeight)
+
+    );
 
    for (int i = 0; i < bumperRingNumVertices; i++)
    {
       Vertex3Ds vert(bumperRing[i].x, bumperRing[i].y, bumperRing[i].z);
       vert = m_fullMatrix.MultiplyVector(vert);
-      buf[i].x = vert.x*scalexy + m_d.m_vCenter.x;
-      buf[i].y = vert.y*scalexy + m_d.m_vCenter.y;
-      buf[i].z = vert.z*(m_d.m_heightScale*m_ptable->m_BG_scalez[m_ptable->m_BG_current_set]) + m_baseHeight;
+      buf[i].x = vert.x;
+      buf[i].y = vert.y;
+      buf[i].z = vert.z;
 
       vert = Vertex3Ds(bumperRing[i].nx, bumperRing[i].ny, bumperRing[i].nz);
       vert = m_fullMatrix.MultiplyVectorNoTranslate(vert);
@@ -704,19 +785,48 @@ void Bumper::GenerateRingMesh(Vertex3D_NoTex2 *buf)
       buf[i].tu = bumperRing[i].tu;
       buf[i].tv = bumperRing[i].tv;
    }
+
 }
 
 void Bumper::GenerateCapMesh(Vertex3D_NoTex2 *buf)
 {
+
+
    const float scalexy = m_d.m_radius*2.0f;
+
+   //for (int i = 0; i < bumperCapNumVertices; i++)
+   //{
+   //   Vertex3Ds vert(bumperCap[i].x, bumperCap[i].y, bumperCap[i].z);
+   //   vert = m_fullMatrix.MultiplyVector(vert);
+   //   buf[i].x = vert.x*scalexy + m_d.m_vCenter.x;
+   //   buf[i].y = vert.y*scalexy + m_d.m_vCenter.y;
+   //   buf[i].z = (vert.z*m_d.m_heightScale + m_d.m_heightScale)*m_ptable->m_BG_scalez[m_ptable->m_BG_current_set] + m_baseHeight;
+
+   //   vert = Vertex3Ds(bumperCap[i].nx, bumperCap[i].ny, bumperCap[i].nz);
+   //   vert = m_fullMatrix.MultiplyVectorNoTranslate(vert);
+   //   buf[i].nx = vert.x;
+   //   buf[i].ny = vert.y;
+   //   buf[i].nz = vert.z;
+   //   buf[i].tu = bumperCap[i].tu;
+   //   buf[i].tv = bumperCap[i].tv;
+   //} 
+   
+    SetWorldMatrix(&m_worldMatrix_Cap,
+        Vertex3Ds(scalexy, scalexy, m_d.m_heightScale * m_ptable->m_BG_scalez[m_ptable->m_BG_current_set]),
+        Vertex3Ds(0.0f, 0.0f, 0.0f),
+        Vertex3Ds(m_d.m_vCenter.x, m_d.m_vCenter.y, m_baseHeight)
+
+    );
+
+
 
    for (int i = 0; i < bumperCapNumVertices; i++)
    {
       Vertex3Ds vert(bumperCap[i].x, bumperCap[i].y, bumperCap[i].z);
       vert = m_fullMatrix.MultiplyVector(vert);
-      buf[i].x = vert.x*scalexy + m_d.m_vCenter.x;
-      buf[i].y = vert.y*scalexy + m_d.m_vCenter.y;
-      buf[i].z = (vert.z*m_d.m_heightScale + m_d.m_heightScale)*m_ptable->m_BG_scalez[m_ptable->m_BG_current_set] + m_baseHeight;
+      buf[i].x = vert.x;
+      buf[i].y = vert.y;
+      buf[i].z = vert.z + 1.0f; // +1.0f to try and replicate this logic? ---> (vert.z*m_d.m_heightScale + m_d.m_heightScale)*m_ptable->m_BG_scalez[m_ptable->m_BG_current_set] + m_baseHeight;
 
       vert = Vertex3Ds(bumperCap[i].nx, bumperCap[i].ny, bumperCap[i].nz);
       vert = m_fullMatrix.MultiplyVectorNoTranslate(vert);
@@ -752,6 +862,8 @@ void Bumper::RenderSetup()
       m_baseVertexBuffer->lock(0, 0, (void**)&buf, VertexBuffer::WRITEONLY);
       GenerateBaseMesh(buf);
       m_baseVertexBuffer->unlock();
+
+
    }
 
    if (m_d.m_fSkirtVisible)
@@ -765,6 +877,8 @@ void Bumper::RenderSetup()
       if (m_socketVertexBuffer)
          m_socketVertexBuffer->release();
       VertexBuffer::CreateVertexBuffer(bumperSocketNumVertices, 0, MY_D3DFVF_NOTEX2_VERTEX, &m_socketVertexBuffer);
+   
+
    }
 
    if (m_d.m_fRingVisible)
@@ -799,6 +913,8 @@ void Bumper::RenderSetup()
       m_ringVertexBuffer->lock(0, 0, (void**)&buf, VertexBuffer::DISCARDCONTENTS);
       memcpy(buf, m_ringVertices, bumperRingNumVertices*sizeof(Vertex3D_NoTex2));
       m_ringVertexBuffer->unlock();
+
+
    }
 
    if (m_d.m_fCapVisible)
@@ -817,7 +933,301 @@ void Bumper::RenderSetup()
       m_capVertexBuffer->lock(0, 0, (void**)&buf, VertexBuffer::WRITEONLY);
       GenerateCapMesh(buf);
       m_capVertexBuffer->unlock();
+
+
    }
+
+}
+
+
+void Bumper::MultiDrawSetup(std::vector<Hitable::DrawElementsIndirectCommand>* m_commands, std::vector<Vertex3D_NoTex2>* _allVertices, std::vector<unsigned int>* _allIndices, std::vector<Hitable::MaterialProperties>* _allMaterials, std::vector<Hitable::ObjMatrices>* _allMatrices, std::vector<Matrix3D>* _allWorldMatrices)
+{
+    RenderDevice* const pd3dDevice = g_pplayer->m_pin3d.m_pd3dPrimaryDevice;
+    m_d.m_time_msec = g_pplayer->m_time_msec;
+
+    m_baseHeight = m_ptable->GetSurfaceHeight(m_d.m_szSurface, m_d.m_vCenter.x, m_d.m_vCenter.y) * m_ptable->m_BG_scalez[m_ptable->m_BG_current_set];
+
+    m_fullMatrix.RotateZMatrix(ANGTORAD(m_d.m_orientation));
+
+    if (m_d.m_fBaseVisible)
+    {
+        m_baseTexture.CreateFromResource(IDB_BUMPER_BASE);
+        if (m_baseIndexBuffer)
+            m_baseIndexBuffer->release();
+        //m_baseIndexBuffer = IndexBuffer::CreateAndFillIndexBuffer(bumperBaseNumIndices, bumperBaseIndices);
+        // new IB func, works as above but without the step that uploads then deletes the internal data buffer we need in PrepareMultiDraw()
+        m_baseIndexBuffer = IndexBuffer::CreateAndFillPermanentIndexBuffer(bumperBaseNumIndices, bumperBaseIndices);
+
+        if (m_baseVertexBuffer)
+            m_baseVertexBuffer->release();
+        VertexBuffer::CreateVertexBuffer(bumperBaseNumVertices, 0, MY_D3DFVF_NOTEX2_VERTEX, &m_baseVertexBuffer);
+
+
+        Vertex3D_NoTex2* buf;
+        m_baseVertexBuffer->lock(0, 0, (void**)&buf, VertexBuffer::WRITEONLY);
+        GenerateBaseMesh(buf);
+
+        // skip this i tihnk as it nulls out the dataBuffer and uploads the buffers which we don't care to do here anymore
+        //m_baseVertexBuffer->unlock();
+
+        // DRAW INFO GATHERING
+        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, m_baseVertexBuffer, m_baseIndexBuffer, m_ptable->GetMaterial(m_d.m_szBaseMaterial), &m_baseTexture, &m_worldMatrix_Base);
+    }
+
+    if (m_d.m_fSkirtVisible)
+    {
+        m_skirtTexture.CreateFromResource(IDB_BUMPER_SKIRT);
+
+        if (m_socketIndexBuffer)
+            m_socketIndexBuffer->release();
+        m_socketIndexBuffer = IndexBuffer::CreateAndFillPermanentIndexBuffer(bumperSocketNumIndices, bumperSocketIndices);
+
+        if (m_socketVertexBuffer)
+            m_socketVertexBuffer->release();
+        VertexBuffer::CreateVertexBuffer(bumperSocketNumVertices, 0, MY_D3DFVF_NOTEX2_VERTEX, &m_socketVertexBuffer);
+
+
+
+        Vertex3D_NoTex2* buf;
+        m_socketVertexBuffer->lock(0, 0, (void**)&buf, VertexBuffer::WRITEONLY);
+        GenerateSocketMesh(buf);
+        //m_socketVertexBuffer->unlock();
+        
+
+        // DRAW INFO GATHERING
+        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, m_socketVertexBuffer, m_socketIndexBuffer, m_ptable->GetMaterial(m_d.m_szSkirtMaterial), &m_skirtTexture, &m_worldMatrix_Skirt);
+
+    }
+
+    if (m_d.m_fRingVisible)
+    {
+        m_ringTexture.CreateFromResource(IDB_BUMPER_RING);
+
+        if (m_d.m_szRingMaterial[0] != '\0')
+        {
+            m_ringMaterial = *(m_ptable->GetMaterial(m_d.m_szRingMaterial));
+        }
+        else
+        {
+            Material default_material;
+            m_ringMaterial = default_material;
+            m_ringMaterial.m_cBase = 0xFFFFFFFF; //!! set properly
+            m_ringMaterial.m_cGlossy = 0;
+            m_ringMaterial.m_bIsMetal = true;
+        }
+
+        if (m_ringIndexBuffer)
+            m_ringIndexBuffer->release();
+        m_ringIndexBuffer = IndexBuffer::CreateAndFillPermanentIndexBuffer(bumperRingNumIndices, bumperRingIndices);
+
+        if (m_ringVertexBuffer)
+            m_ringVertexBuffer->release();
+        VertexBuffer::CreateVertexBuffer(bumperRingNumVertices, USAGE_DYNAMIC, MY_D3DFVF_NOTEX2_VERTEX, &m_ringVertexBuffer);
+
+        //m_ringVertices = new Vertex3D_NoTex2[bumperRingNumVertices];
+        //GenerateRingMesh(m_ringVertices);
+
+        Vertex3D_NoTex2* buf;
+        m_ringVertexBuffer->lock(0, 0, (void**)&buf, VertexBuffer::DISCARDCONTENTS);
+        GenerateRingMesh(buf);
+        //memcpy(buf, m_ringVertices, bumperRingNumVertices * sizeof(Vertex3D_NoTex2));
+        //m_ringVertexBuffer->unlock();
+
+
+
+        // DRAW INFO GATHERING
+        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, m_ringVertexBuffer, m_ringIndexBuffer, m_ptable->GetMaterial(m_d.m_szRingMaterial), &m_ringTexture, &m_worldMatrix_Ring);
+
+    }
+
+    if (m_d.m_fCapVisible)
+    {
+        m_capTexture.CreateFromResource(IDB_BUMPERCAP);
+
+        if (m_capIndexBuffer)
+            m_capIndexBuffer->release();
+        m_capIndexBuffer = IndexBuffer::CreateAndFillPermanentIndexBuffer(bumperCapNumIndices, bumperCapIndices);
+
+        if (m_capVertexBuffer)
+            m_capVertexBuffer->release();
+        VertexBuffer::CreateVertexBuffer(bumperCapNumVertices, 0, MY_D3DFVF_NOTEX2_VERTEX, &m_capVertexBuffer);
+
+        Vertex3D_NoTex2* buf;
+        m_capVertexBuffer->lock(0, 0, (void**)&buf, VertexBuffer::WRITEONLY);
+        GenerateCapMesh(buf);
+        //m_capVertexBuffer->unlock();
+
+
+
+        // DRAW INFO GATHERING
+        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, m_capVertexBuffer, m_capIndexBuffer, m_ptable->GetMaterial(m_d.m_szCapMaterial), &m_capTexture, &m_worldMatrix_Cap);
+
+    }
+
+}
+
+void Bumper::UpdateWorldMatrix(std::vector<Matrix3D>* _allWorldMatrices)
+{
+    // update world matrices according to logic in RenderDynamic()
+    RenderDevice* const pd3dDevice = g_pplayer->m_pin3d.m_pd3dPrimaryDevice;
+
+    //TRACE_FUNCTION();
+
+    if (m_ptable->m_fReflectionEnabled && !m_d.m_fReflectionEnabled)
+        return;
+
+    const U32 old_time_msec = (m_d.m_time_msec < g_pplayer->m_time_msec) ? m_d.m_time_msec : g_pplayer->m_time_msec;
+    m_d.m_time_msec = g_pplayer->m_time_msec;
+    const float diff_time_msec = (float)(g_pplayer->m_time_msec - old_time_msec);
+
+    const float scalexy = m_d.m_radius;
+
+    const int state = m_pbumperhitcircle->m_bumperanim_fHitEvent ? 1 : 0;    // 0 = not hit, 1 = hit
+
+    // BASE
+    if(m_d.m_fBaseVisible){
+        _allWorldMatrices->push_back(m_worldMatrix_Base);
+    }
+
+    // SKIRT
+    const float SKIRT_TILT = 5.0f;
+    float rotx = 0.0f, roty = 0.0f;
+
+    if (m_d.m_fSkirtVisible)
+    {
+        if (m_enableSkirtAnimation)
+        {
+            if (state == 1)
+            {
+                m_doSkirtAnimation = true;
+                //UpdateSkirt(true);
+
+
+                    const float hitx = m_pbumperhitcircle->m_bumperanim_hitBallPosition.x;
+                    const float hity = m_pbumperhitcircle->m_bumperanim_hitBallPosition.y;
+                    float dy = fabsf(hity - m_d.m_vCenter.y);
+                    if (dy == 0.0f)
+                        dy = 0.000001f;
+                    const float dx = fabsf(hitx - m_d.m_vCenter.x);
+                    const float skirtA = atanf(dx / dy);
+                    rotx = cosf(skirtA) * SKIRT_TILT;
+                    roty = sinf(skirtA) * SKIRT_TILT;
+                    if (m_d.m_vCenter.y < hity)
+                        rotx = -rotx;
+                    if (m_d.m_vCenter.x > hitx)
+                        roty = -roty;
+                
+
+
+
+                m_skirtCounter = 0.0f;
+            }
+            if (m_doSkirtAnimation)
+            {
+                m_skirtCounter += /*1.0f**/diff_time_msec;
+                if (m_skirtCounter > 160.0f)
+                {
+                    m_doSkirtAnimation = false;
+                    //UpdateSkirt(false);
+                }
+            }
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+        //Matrix3D tempMatrix, rMatrix;
+        //rMatrix.SetIdentity();
+
+        //tempMatrix.RotateZMatrix(ANGTORAD(m_d.m_orientation));
+        //tempMatrix.Multiply(rMatrix, rMatrix);
+
+        //tempMatrix.RotateYMatrix(ANGTORAD(roty));
+        //tempMatrix.Multiply(rMatrix, rMatrix);
+        //tempMatrix.RotateXMatrix(ANGTORAD(rotx));
+        //tempMatrix.Multiply(rMatrix, rMatrix);
+
+
+
+
+
+
+
+
+
+        SetWorldMatrix(&m_worldMatrix_Skirt,
+            Vertex3Ds(scalexy, scalexy, m_d.m_heightScale * m_ptable->m_BG_scalez[m_ptable->m_BG_current_set]),
+            Vertex3Ds(rotx, roty, 0.0f),
+            Vertex3Ds(m_d.m_vCenter.x, m_d.m_vCenter.y, m_baseHeight + 5.0f)
+
+        );
+
+        _allWorldMatrices->push_back(m_worldMatrix_Skirt);
+        
+    }
+
+    // RING
+    if (m_d.m_fRingVisible)
+    {
+        const float limit = m_d.m_ringDropOffset + (m_d.m_heightScale * 0.5f) * m_ptable->m_BG_scalez[m_ptable->m_BG_current_set];
+
+        if (state == 1)
+        {
+            m_ringAnimate = true;
+            m_ringDown = true;
+            m_pbumperhitcircle->m_bumperanim_fHitEvent = false;
+        }
+
+        if (m_ringAnimate)
+        {
+            float step = m_d.m_ringSpeed * m_ptable->m_BG_scalez[m_ptable->m_BG_current_set];
+            if (m_ringDown)
+                step = -step;
+            m_pbumperhitcircle->m_bumperanim_ringAnimOffset += step * diff_time_msec;
+            if (m_ringDown)
+            {
+                if (m_pbumperhitcircle->m_bumperanim_ringAnimOffset <= -limit)
+                {
+                    m_pbumperhitcircle->m_bumperanim_ringAnimOffset = -limit;
+                    m_ringDown = false;
+                }
+            }
+            else
+            {
+                if (m_pbumperhitcircle->m_bumperanim_ringAnimOffset >= 0.0f)
+                {
+                    m_pbumperhitcircle->m_bumperanim_ringAnimOffset = 0.0f;
+                    m_ringAnimate = false;
+                }
+            }
+            //if (m_ringVertexBuffer)
+                //UpdateRing();
+        }
+
+
+
+
+        // default values apart from ringAnimOffset - this could simplified/optimised later with an ApplyTranslationToWorldMatrix func
+        SetWorldMatrix(&m_worldMatrix_Ring,
+            Vertex3Ds(scalexy, scalexy, m_d.m_heightScale * m_ptable->m_BG_scalez[m_ptable->m_BG_current_set]),
+            Vertex3Ds(0.0f, 0.0f, 0.0f),
+            Vertex3Ds(m_d.m_vCenter.x, m_d.m_vCenter.y, m_baseHeight + m_pbumperhitcircle->m_bumperanim_ringAnimOffset));
+
+        _allWorldMatrices->push_back(m_worldMatrix_Ring);
+    }
+
+    // CAP
+    if (m_d.m_fCapVisible) {
+        _allWorldMatrices->push_back(m_worldMatrix_Cap);
+    }
 
 }
 
@@ -1527,3 +1937,8 @@ void Bumper::SetDefaultPhysics(bool fromMouseClick)
    m_d.m_force = fromMouseClick ? LoadValueFloatWithDefault("DefaultProps\\Bumper", "Force", 15) : 15;
    m_d.m_scatter = fromMouseClick ? LoadValueFloatWithDefault("DefaultProps\\Bumper", "Scatter", 0) : 0;
 }
+
+
+
+    
+    

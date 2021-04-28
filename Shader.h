@@ -344,6 +344,8 @@ private:
    static int maxSlots;
 public:
    void setAttributeFormat(DWORD fvf);
+   void BeginMulti(GLuint* debugTex);
+   void BeginMulti();
    static std::string shaderPath;
    static std::string Defines;
    static void setTextureDirty(int TextureID);

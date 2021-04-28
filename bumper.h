@@ -84,6 +84,8 @@ public:
    STDMETHOD(InterfaceSupportsErrorInfo)(REFIID riid);
 
    virtual void MoveOffset(const float dx, const float dy);
+   void MultiDrawSetup(std::vector<Hitable::DrawElementsIndirectCommand>* m_commands, std::vector<Vertex3D_NoTex2>* _allVertices, std::vector<unsigned int>* _allIndices, std::vector<Hitable::MaterialProperties>* _allMaterials, std::vector<Hitable::ObjMatrices>* _allMatrices, std::vector<Matrix3D>* _allWorldMatrices);
+   void UpdateWorldMatrix(std::vector<Matrix3D>* _allWorldMatrices);
    virtual void SetObjectPos();
 
    virtual void GetDialogPanes(vector<PropertyPane*> &pvproppane);
@@ -94,6 +96,7 @@ public:
 
    virtual void UpdatePropertyPanes();
    virtual void SetDefaultPhysics(bool fromMouseClick);
+  
    virtual void ExportMesh(FILE *f);
    virtual void RenderBlueprint(Sur *psur, const bool solid);
 
@@ -133,6 +136,7 @@ private:
    void GenerateRingMesh(Vertex3D_NoTex2 *buf);
    void GenerateCapMesh(Vertex3D_NoTex2 *buf);
 
+
    PinTable *m_ptable;
 
    VertexBuffer *m_baseVertexBuffer;
@@ -148,6 +152,9 @@ private:
    IndexBuffer *m_capIndexBuffer;
 
    Matrix3D m_fullMatrix;
+
+   Matrix3D m_worldMatrix_Base, m_worldMatrix_Cap, m_worldMatrix_Ring, m_worldMatrix_Skirt;
+
    Vertex3D_NoTex2 *m_ringVertices;
    Texture m_ringTexture;
    Texture m_skirtTexture;
@@ -163,6 +170,8 @@ private:
    bool    m_enableSkirtAnimation;
    bool    m_ringDown;
    bool    m_ringAnimate;
+
+
 
    // IBumper
 public:
@@ -213,6 +222,8 @@ public:
    STDMETHOD(get_EnableSkirtAnimation)(/*[out, retval]*/ VARIANT_BOOL *pVal);
    STDMETHOD(put_EnableSkirtAnimation)(/*[in]*/ VARIANT_BOOL newVal);
    STDMETHOD(PlayHit)();
+
+
 };
 
 #endif // !defined(AFX_BUMPER_H__9A202FF0_7FAE_49BF_AA4C_C01C692E6DD9__INCLUDED_)

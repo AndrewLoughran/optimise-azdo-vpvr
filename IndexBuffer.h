@@ -26,8 +26,15 @@ public:
    static IndexBuffer* CreateAndFillIndexBuffer(const eastl::vector<unsigned int>& indices);
    static IndexBuffer* CreateAndFillIndexBuffer(const eastl::vector<WORD>& indices);
 
+   static IndexBuffer* CreateAndFillPermanentIndexBuffer(const unsigned int numIndices, const unsigned int* indices);
+   //static IndexBuffer* CreateAndFillPermanentIndexBuffer(const unsigned int numIndices, const WORD* indices);
+   static IndexBuffer* CreateAndFillPermanentIndexBuffer(const eastl::vector<unsigned int>& indices);
+   //static IndexBuffer* CreateAndFillPermanentIndexBuffer(const eastl::vector<WORD>& indices);
+
    GLuint getOffset() const { return offset; }
    Format getIndexFormat() const { return indexFormat; }
+   GLuint getCount() const { return count; }
+   void* getBuffer() const { return dataBuffer; }
    static void UploadBuffers();
 private:
    GLuint count;

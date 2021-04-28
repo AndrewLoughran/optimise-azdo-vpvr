@@ -81,7 +81,7 @@
 
 //#define EVENPHYSICSTIME
 
-#define DEBUG_BALL_SPIN
+//#define DEBUG_BALL_SPIN
 
 //VR Support
 

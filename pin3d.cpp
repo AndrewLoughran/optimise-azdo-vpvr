@@ -20,6 +20,7 @@ Pin3D::Pin3D()
    m_envRadianceTexture = NULL;
    tableVBuffer = NULL;
    backGlass = NULL;
+   firstRun = true;
 
    m_camx = 0.f;
    m_camy = 0.f;
@@ -1133,7 +1134,14 @@ void Pin3D::RenderPlayfieldGraphics(const bool depth_only)
    {
       const IEditable * const piEdit = g_pplayer->m_ptable->GetElementByName("playfield_mesh");
       Primitive * const pPrim = (Primitive *)piEdit;
+      /* // used if debugging by only rendering nonTrans objects
+      if (firstRun) {
+          firstRun = false;
+          pPrim->RenderSetup();
+      }
+      */
       pPrim->m_d.m_fVisible = true;  // temporary enable the otherwise invisible playfield
+      
       pPrim->RenderObject();
       pPrim->m_d.m_fVisible = false; // restore
    }

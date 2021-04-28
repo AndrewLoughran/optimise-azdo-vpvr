@@ -31,6 +31,9 @@
 
 #include "shader/AreaTex.h"
 #include "shader/SearchTex.h"
+#include <iostream>
+#include <tracy/Tracy.hpp>
+#include <tracy/TracyOpenGL.hpp>
 
 #ifndef ENABLE_SDL
 #pragma comment(lib, "d3d9.lib")        // TODO: put into build system
@@ -44,6 +47,69 @@
 static RenderTarget *srcr_cache = NULL; //!! meh, for nvidia depth read only
 static D3DTexture *srct_cache = NULL;
 static D3DTexture* dest_cache = NULL;
+
+
+
+static void APIENTRY simple_print_callback(GLenum source,
+    GLenum type,
+    GLuint id,
+    GLenum severity,
+    GLsizei length,
+    const GLchar* message,
+    const void* userParam)
+{
+
+ 
+    char str[64];
+    snprintf(str, 64, "--------------------------\n");
+    OutputDebugString(str);
+
+    char str2[4096];
+    snprintf(str2, 4096, "Debug message (%u): %s\n", id, message);
+    OutputDebugString(str2);
+
+    char s[128], t[128], se[128];
+    switch (source)
+    {
+    case GL_DEBUG_SOURCE_API:             snprintf(s, 128, "Source: API\n");  break;
+    case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   snprintf(s, 128, "Source: Window System\n"); break;
+    case GL_DEBUG_SOURCE_SHADER_COMPILER: snprintf(s, 128, "Source: Shader Compiler\n"); break;
+    case GL_DEBUG_SOURCE_THIRD_PARTY:     snprintf(s, 128, "Source: Third Party\n"); break;
+    case GL_DEBUG_SOURCE_APPLICATION:     snprintf(s, 128, "Source: Application\n"); break;
+    case GL_DEBUG_SOURCE_OTHER:           snprintf(s, 128, "Source: Other\n"); break;
+    };
+
+    OutputDebugString(s);
+
+    switch (type)
+    {
+    case GL_DEBUG_TYPE_ERROR:               snprintf(t, 128, "Type: Error\n"); break;
+    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: snprintf(t, 128, "Type: Deprecated Behaviour\n"); break;
+    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  snprintf(t, 128, "Type: Undefined Behaviour\n"); break;
+    case GL_DEBUG_TYPE_PORTABILITY:         snprintf(t, 128, "Type: Portability\n"); break;
+    case GL_DEBUG_TYPE_PERFORMANCE:         snprintf(t, 128, "Type: Performance\n"); break;
+    case GL_DEBUG_TYPE_MARKER:              snprintf(t, 128, "Type: Marker\n"); break;
+    case GL_DEBUG_TYPE_PUSH_GROUP:          snprintf(t, 128, "Type: Push Group\n"); break;
+    case GL_DEBUG_TYPE_POP_GROUP:           snprintf(t, 128, "Type: Pop Group\n"); break;
+    case GL_DEBUG_TYPE_OTHER:               snprintf(t, 128, "Type: Other\n"); break;
+    };
+
+    OutputDebugString(t);
+
+    switch (severity)
+    {
+    case GL_DEBUG_SEVERITY_HIGH:         snprintf(se, 128, "Severity: high\n"); break;
+    case GL_DEBUG_SEVERITY_MEDIUM:       snprintf(se, 128, "Severity: medium\n"); break;
+    case GL_DEBUG_SEVERITY_LOW:          snprintf(se, 128, "Severity: low\n"); break;
+    case GL_DEBUG_SEVERITY_NOTIFICATION: snprintf(se, 128, "Severity: notificatio\nn"); break;
+    };
+
+    OutputDebugString(se);
+
+
+
+}
+
 
 static bool IsWindowsVistaOr7()
 {
@@ -724,8 +790,8 @@ void RenderDevice::CreateDevice(int &refreshrate, UINT adapterIndex)
 
    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, GL_VERSION_NUMBER / 100);
    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, GL_VERSION_NUMBER % 100);
-   //SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-
+   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+   
 /*   SDL_GL_SetAttribute(SDL_GL_RED_SIZE, video10bit ? 10 : 8);
    SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, video10bit ? 10 : 8);
    SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, video10bit ? 10 : 8);
@@ -737,6 +803,13 @@ void RenderDevice::CreateDevice(int &refreshrate, UINT adapterIndex)
    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
 
    //SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+
+#ifdef _DEBUG
+// Request a debug context.
+  // SDL_GL_SetAttribute(
+   //    SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG
+  // );
+#endif
 
    int disp_x, disp_y, disp_w, disp_h;
    getDisplaySetupByID(m_adapter, disp_x, disp_y, disp_w, disp_h);
@@ -750,7 +823,7 @@ void RenderDevice::CreateDevice(int &refreshrate, UINT adapterIndex)
    else
       m_sdl_playfieldHwnd = SDL_CreateWindow(
          "Visual Pinball Player SDL", disp_x + (disp_w - m_width) / 2, disp_y + (disp_h - m_height) / 2, m_width, m_height,
-         SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | (m_fullscreen ? SDL_WINDOW_FULLSCREEN : 0));
+         SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | (m_fullscreen ? SDL_WINDOW_FULLSCREEN : 0));
 
    SDL_SysWMinfo wmInfo;
    SDL_VERSION(&wmInfo.version);
@@ -758,13 +831,52 @@ void RenderDevice::CreateDevice(int &refreshrate, UINT adapterIndex)
    m_windowHwnd = wmInfo.info.win.window;
 
    m_sdl_context = SDL_GL_CreateContext(m_sdl_playfieldHwnd);
+ 
 
    SDL_GL_MakeCurrent(m_sdl_playfieldHwnd, m_sdl_context);
 
-   if (!gladLoadGLLoader(SDL_GL_GetProcAddress)) {
+   
+//   if (!gladLoadGLLoader(SDL_GL_GetProcAddress)) {
+   if (!gladLoadGL((GLADloadfunc)SDL_GL_GetProcAddress)) {
       ShowError("Glad failed");
       exit(-1);
    }
+
+#ifdef _DEBUG
+   gladInstallGLDebug();
+
+   if (GLAD_GL_KHR_debug) {
+       char str[256];
+       sprintf(str, "\nGL_KHR_debug supported!!!\n");
+       OutputDebugString(str);
+   }
+
+   int flags; glGetIntegerv(GL_CONTEXT_FLAGS, &flags);
+   if (flags & GL_CONTEXT_FLAG_DEBUG_BIT)
+   {
+       // initialize debug output 
+       char str[256];
+       sprintf(str, "\nGDebug output initalised!!!\n");
+       OutputDebugString(str);
+   }
+
+   // Enable the debug callback
+   glEnable(GL_DEBUG_OUTPUT);
+   glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+   glDebugMessageCallback(&simple_print_callback, nullptr);
+
+   
+   glDebugMessageControl(
+       GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE
+   );
+
+
+#else
+
+   gladUninstallGLDebug();
+#endif
+
+
 
    GLint frameBuffer[4];
    glGetIntegerv(GL_VIEWPORT, frameBuffer);
@@ -936,6 +1048,9 @@ void RenderDevice::CreateDevice(int &refreshrate, UINT adapterIndex)
    SetRenderState(RenderDevice::ZFUNC, RenderDevice::Z_LESSEQUAL);
 
    CHECKD3D();
+
+   TracyGpuContext;
+   
 }
 
 bool RenderDevice::LoadShaders()
@@ -959,6 +1074,7 @@ bool RenderDevice::LoadShaders()
    Shader::shaderPath.append("\\glshader\\");
    basicShader = new Shader(this);
    shaderCompilationOkay = basicShader->Load("BasicShader.glfx", 0) && shaderCompilationOkay;
+
 
    ballShader = new Shader(this);
    shaderCompilationOkay = ballShader->Load("ballShader.glfx", 0) && shaderCompilationOkay;
@@ -1563,6 +1679,16 @@ bool RenderDevice::DepthBufferReadBackAvailable()
 
 void RenderDevice::FreeShader()
 {
+    if (basicShaderMultiDraw)
+    {
+        basicShaderMultiDraw->SetTextureNull(SHADER_Texture0);
+        basicShaderMultiDraw->SetTextureNull(SHADER_Texture1);
+        basicShaderMultiDraw->SetTextureNull(SHADER_Texture2);
+        basicShaderMultiDraw->SetTextureNull(SHADER_Texture3);
+        basicShaderMultiDraw->SetTextureNull(SHADER_Texture4);
+        delete basicShaderMultiDraw;
+        basicShaderMultiDraw = 0;
+    }
    if (basicShader)
    {
       basicShader->SetTextureNull(SHADER_Texture0);
@@ -1678,6 +1804,8 @@ void RenderDevice::Flip(const bool vsync)
 {
 #ifdef ENABLE_SDL
    SDL_GL_SwapWindow(m_sdl_playfieldHwnd);
+   FrameMark;
+   //TracyGpuCollect;
 #ifdef ENABLE_VR
    //glFlush();
    //glFinish();
@@ -1709,14 +1837,14 @@ void RenderDevice::Flip(const bool vsync)
       mDwmFlush(); //!! also above present?? (internet sources are not clear about order)
 #endif
    // reset performance counters
-   m_frameDrawCalls = m_curDrawCalls;
-   m_frameStateChanges = m_curStateChanges;
-   m_frameTextureChanges = m_curTextureChanges;
-   m_frameParameterChanges = m_curParameterChanges;
-   m_frameTechniqueChanges = m_curTechniqueChanges;
-   m_curDrawCalls = m_curStateChanges = m_curTextureChanges = m_curParameterChanges = m_curTechniqueChanges = 0;
-   m_frameTextureUpdates = m_curTextureUpdates;
-   m_curTextureUpdates = 0;
+   //m_frameDrawCalls = m_curDrawCalls;
+   //m_frameStateChanges = m_curStateChanges;
+   //m_frameTextureChanges = m_curTextureChanges;
+   //m_frameParameterChanges = m_curParameterChanges;
+   //m_frameTechniqueChanges = m_curTechniqueChanges;
+   //m_curDrawCalls = m_curStateChanges = m_curTextureChanges = m_curParameterChanges = m_curTechniqueChanges = 0;
+   //m_frameTextureUpdates = m_curTextureUpdates;
+   //m_curTextureUpdates = 0;
 }
 
 RenderTarget* RenderDevice::DuplicateRenderTarget(RenderTarget* src)
@@ -2631,6 +2759,7 @@ void RenderDevice::DrawPrimitiveVB(const PrimitveTypes type, const DWORD fvf, Ve
 
 void RenderDevice::DrawIndexedPrimitiveVB(const PrimitveTypes type, const DWORD fvf, VertexBuffer* vb, const DWORD startVertex, const DWORD vertexCount, IndexBuffer* ib, const DWORD startIndex, const DWORD indexCount)
 {
+    TracyGpuZone("DrawElementsBaseVertex");
 	if (vb == NULL || ib == NULL)
 		return;
 	

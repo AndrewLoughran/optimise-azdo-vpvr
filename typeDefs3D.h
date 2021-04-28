@@ -4,7 +4,8 @@
 //Set the used GL version. For 4.5 set this to 405, for 4.1 to 401
 //ATM 4.5 is only required for a small VR tweak most code also works with lower versions.
 #define GL_VERSION_NUMBER 405
-#include <glad/glad.h>
+#define GL_GLEXT_PROTOTYPES
+#include <glad/gl.h>
 #include <sdl2/SDL_opengl.h>
 #include <sdl2/SDL.h>
 #include <sdl2/SDL_ttf.h>

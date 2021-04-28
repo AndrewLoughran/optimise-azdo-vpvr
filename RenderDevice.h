@@ -73,8 +73,9 @@ enum TransformStateType {
 
 #ifdef ENABLE_SDL
 enum UsageFlags {
-   USAGE_STATIC = GL_STATIC_DRAW,
-   USAGE_DYNAMIC = GL_DYNAMIC_DRAW
+    USAGE_STATIC = GL_STATIC_DRAW,
+    USAGE_DYNAMIC = GL_DYNAMIC_DRAW,
+    USAGE_STREAMING = GL_STREAM_DRAW
 };
 #else
 enum UsageFlags {
@@ -407,6 +408,8 @@ RenderDevice(HWND* const hwnd, const int width, const int height, const bool ful
    D3DTexture* m_SMAAsearchTexture;
    D3DTexture* m_SMAAareaTexture;
 
+   GLfloat m_maxaniso; //moved from private >.>
+
 private:
    void DrawPrimitive(const PrimitveTypes type, const DWORD fvf, const void* vertices, const DWORD vertexCount);
 
@@ -450,7 +453,7 @@ private:
 
    static VertexBuffer *m_quadVertexBuffer;      // internal vb for rendering quads
 
-   GLfloat m_maxaniso;
+   
    bool m_mag_aniso;
 
    bool m_autogen_mipmap;
@@ -503,6 +506,7 @@ public:
    Shader *flasherShader;
    Shader *lightShader;
    Shader *StereoShader;
+   Shader* basicShaderMultiDraw;
 #ifdef SEPARATE_CLASSICLIGHTSHADER
    Shader *classicLightShader;
 #else

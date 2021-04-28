@@ -265,6 +265,13 @@ public:
       DECLARE_REGISTRY_RESOURCEID(IDR_PRIMITIVE)
 
    virtual void MoveOffset(const float dx, const float dy);
+   void MultiDrawSetup(std::vector<DrawElementsIndirectCommand>* m_commands,
+       std::vector<Vertex3D_NoTex2>* _allVertices,
+       std::vector<unsigned int>* _allIndices,
+       std::vector<MaterialProperties>* _allMaterials,
+       std::vector<ObjMatrices>* _allMatrices,
+       std::vector<Matrix3D>* _allWorldMatrices);
+   void UpdateWorldMatrix(std::vector<Matrix3D>* _allWorldMatrices);
    virtual void SetObjectPos();
    // Multi-object manipulation
    virtual Vertex2D GetCenter() const;

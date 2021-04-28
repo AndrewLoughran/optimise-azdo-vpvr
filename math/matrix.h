@@ -92,8 +92,8 @@ public:
    void scaleZ(const float factor);
    void CreateSkewSymmetric(const Vertex3Ds &pv3D);
    void MultiplyScalar(const float scalar);
-   Matrix3 Matrix3::operator* (const Matrix3& v) const;
-   Matrix3 Matrix3::operator+ (const Matrix3& v) const;
+   Matrix3 operator* (const Matrix3& v) const;
+   Matrix3 operator+ (const Matrix3& v) const;
    template <class VecType>
    Vertex3Ds operator* (const VecType& v) const
    {

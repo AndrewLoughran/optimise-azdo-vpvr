@@ -1,0 +1,22 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/.vs
+/Debug_SDL
+/out/build/x64-Debug (default)
+/Release_SDL
+/Release_SDL_TRACY
+/tracy
+/VisualPinball.net2017.vcxproj.userNEW
+/VisualPinball.net2017.vcxproj.user
+/vpinball.tlb
+/vpinball_i.h
+/vpinball_i.c
+*.tlog
+*.obj
+*.sbr
+*.xdc
+*.pdb
+*.log
+*.pch

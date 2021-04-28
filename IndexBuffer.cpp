@@ -93,15 +93,90 @@ IndexBuffer* IndexBuffer::CreateAndFillIndexBuffer(const unsigned int numIndices
    return ib;
    }
 
+IndexBuffer* IndexBuffer::CreateAndFillIndexBuffer(const eastl::vector<unsigned int>& indices)
+{
+    return CreateAndFillIndexBuffer((unsigned int)indices.size(), indices.data());
+}
+
 IndexBuffer* IndexBuffer::CreateAndFillIndexBuffer(const eastl::vector<WORD>& indices)
 {
    return CreateAndFillIndexBuffer((unsigned int)indices.size(), indices.data());
 }
 
-IndexBuffer* IndexBuffer::CreateAndFillIndexBuffer(const eastl::vector<unsigned int>& indices)
+IndexBuffer* IndexBuffer::CreateAndFillPermanentIndexBuffer(const unsigned int numIndices, const unsigned int* indices)
 {
-   return CreateAndFillIndexBuffer((unsigned int)indices.size(), indices.data());
+#ifdef ENABLE_SDL
+    IndexBuffer* ib = new IndexBuffer();
+    ib->count = numIndices;
+    ib->indexFormat = IndexBuffer::FMT_INDEX32;
+    ib->usage = GL_STATIC_DRAW;
+    ib->size = numIndices * (ib->indexFormat == FMT_INDEX16 ? 2 : 4);
+    ib->sizeToLock = ib->size;
+    ib->Buffer = 0;
+    if (COMBINE_BUFFERS == 0 || ib->usage != GL_STATIC_DRAW) {
+        ib->dataBuffer = (void*)indices;
+        //ib->UploadData(false);
+    }
+    else {
+        ib->offsetToLock = 0;
+       // ib->dataBuffer = nullptr;
+       // ib->addToNotUploadedBuffers(indices);
+    }
+#else
+    IndexBuffer* ib;
+    CreateIndexBuffer(numIndices, 0, IndexBuffer::FMT_INDEX32, &ib);
+
+    void* buf;
+    ib->lock(0, 0, &buf, 0);
+    memcpy(buf, indices, numIndices * sizeof(indices[0]));
+    ib->unlock();
+#endif
+    return ib;
 }
+// disabling these, focusing on unsigned ints ONLY
+/*
+IndexBuffer* IndexBuffer::CreateAndFillPermanentIndexBuffer(const unsigned int numIndices, const WORD* indices)
+{
+#ifdef ENABLE_SDL
+    IndexBuffer* ib = new IndexBuffer();
+    ib->count = numIndices;
+    ib->indexFormat = IndexBuffer::FMT_INDEX16;
+    ib->usage = GL_STATIC_DRAW;
+    ib->size = numIndices * (ib->indexFormat == FMT_INDEX16 ? 2 : 4);
+    ib->sizeToLock = ib->size;
+    ib->Buffer = 0;
+    if (COMBINE_BUFFERS == 0 || ib->usage != GL_STATIC_DRAW) {
+        ib->dataBuffer = (void*)indices;
+       // ib->UploadData(false);
+    }
+    else {
+        ib->offsetToLock = 0;
+       // ib->dataBuffer = nullptr;
+       // ib->addToNotUploadedBuffers(indices);
+    }
+#else
+    IndexBuffer* ib;
+    CreateIndexBuffer(numIndices, 0, IndexBuffer::FMT_INDEX16, &ib);
+
+    void* buf;
+    ib->lock(0, 0, &buf, 0);
+    memcpy(buf, indices, numIndices * sizeof(indices[0]));
+    ib->unlock();
+#endif
+    return ib;
+}
+*/
+IndexBuffer* IndexBuffer::CreateAndFillPermanentIndexBuffer(const eastl::vector<unsigned int>& indices)
+{
+    return CreateAndFillPermanentIndexBuffer((unsigned int)indices.size(), indices.data());
+}
+/*
+IndexBuffer* IndexBuffer::CreateAndFillPermanentIndexBuffer(const eastl::vector<WORD>& indices)
+{
+    return CreateAndFillPermanentIndexBuffer((unsigned int)indices.size(), indices.data());
+}
+*/
+
 
 void IndexBuffer::lock(const unsigned int offsetToLock, const unsigned int sizeToLock, void **dataBuffer, const DWORD flags)
 {
