@@ -218,10 +218,13 @@ public:
 
 
                 // colourful debug texture              
-                //unsigned int data[4] = { 0xff0000ff, 0xffffff00, 0xffff0000, 0xff00ff00 };
+                // unsigned int data[4] = { 0xff0000ff, 0xffffff00, 0xffff0000, 0xff00ff00 };
 
-                // blank invisible tex (production behaviour, this is what we do instead of using a second shader for objects without textures)
-                unsigned int data[4] = { 0x00000000, 0x00000000, 0x00000000, 0x00000000 };
+                // blank invisible tex 
+                // unsigned int data[4] = { 0x00000000, 0x00000000, 0x00000000, 0x00000000 };
+                
+                // grey tex
+                unsigned int data[4] = { 0xff888888, 0xff888888, 0xff888888, 0xff888888 };
 
 
                 //GLubyte data[] = { 255,255,255,255 };

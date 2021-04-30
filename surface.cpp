@@ -569,6 +569,8 @@ void Surface::MultiDrawSetup(std::vector<Hitable::DrawElementsIndirectCommand>* 
     const float oldBottomHeight = m_d.m_heightbottom;
     const float oldTopHeight = m_d.m_heighttop;
 
+    
+
     m_d.m_heightbottom *= m_ptable->m_BG_scalez[m_ptable->m_BG_current_set];
     m_d.m_heighttop *= m_ptable->m_BG_scalez[m_ptable->m_BG_current_set];
     if (!m_vlinesling.empty()){
@@ -636,8 +638,14 @@ void Surface::MultiDrawSetup(std::vector<Hitable::DrawElementsIndirectCommand>* 
 
         slingshotWorldMatrix.SetIdentity();
 
-        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, slingshotVBuffer, slingIBuffer, mat, nullptr, &slingshotWorldMatrix);
+        int VBufferOffset = 0;
+        for (size_t i = 0; i < m_vlinesling.size(); i++)
+        {
 
+            PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, slingshotVBuffer, slingIBuffer, mat, nullptr, &slingshotWorldMatrix, 9, VBufferOffset, 24, 0);
+            VBufferOffset += 9;
+
+        }
     }
 
     m_isDynamic = false;
