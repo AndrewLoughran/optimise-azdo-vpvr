@@ -1425,6 +1425,20 @@ void Primitive::MultiDrawSetup(std::vector<DrawElementsIndirectCommand>* m_comma
 
         nMap = m_ptable->GetImage(m_d.m_szNormalMap);
 
+        if (mat != nullptr) {
+            const vec4 tmp(m_d.m_fDisableLightingTop, m_d.m_fDisableLightingBelow, 0.f, 0.f);
+            //pd3dDevice->basicShader->SetDisableLighting(tmp);
+            mat->m_fDisableLighting_top_below = tmp;
+            mat->m_objectSpaceNormalMap = m_d.m_objectSpaceNormalMap;
+
+            if (nMap != nullptr) {
+                mat->m_bDoNormalMapping = true;
+            }
+
+        }
+
+
+
         // not necessary i think if its only called once for setup as the matrix is already populated somewhere
         //RecalculateMatrices();
 
@@ -1546,7 +1560,7 @@ void Primitive::MultiDrawSetup(std::vector<DrawElementsIndirectCommand>* m_comma
    
 
     //RenderObject(); // dummy link
-    PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, vertexBuffer, indexBuffer, mat, mainTex, &fullMatrix);
+    PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, vertexBuffer, indexBuffer, mat, mainTex, &fullMatrix, nMap);
 }
 
 void Primitive::UpdateWorldMatrix(std::vector<Matrix3D>* _allWorldMatrices) {

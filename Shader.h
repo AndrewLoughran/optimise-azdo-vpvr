@@ -337,7 +337,7 @@ private:
    static D3DTexture* noTexture;
    static D3DTexture* noTextureMSAA;
    static float* zeroData;
-   glShader* m_currentTechnique;
+   
    static int nextTextureSlot;
    static int* textureSlotList;
    static std::map<int, int> slotTextureList;
@@ -348,6 +348,7 @@ public:
    void BeginMulti();
    static std::string shaderPath;
    static std::string Defines;
+   glShader* m_currentTechnique;
    static void setTextureDirty(int TextureID);
 #else
    ID3DXEffect * m_shader;

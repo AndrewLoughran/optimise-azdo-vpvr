@@ -645,7 +645,7 @@ public:
    std::vector<Hitable::MaterialProperties> _allMaterials;
    std::vector<unsigned int> draw_index;
 
-   GLuint MAX_DRAWS = 0, ACTUAL_DRAWS = 0;
+   GLuint MAX_DRAWS = 0, ACTUAL_DRAWS = 0, NON_TRANS_COUNT = 0, TRANS_COUNT = 0;
 
    Hitable::ObjMatrices* obj_matrix_ptr = nullptr;
    Hitable::Hitable::MaterialProperties* obj_material_ptr = nullptr;

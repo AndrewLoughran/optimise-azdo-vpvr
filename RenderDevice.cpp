@@ -1075,6 +1075,8 @@ bool RenderDevice::LoadShaders()
    basicShader = new Shader(this);
    shaderCompilationOkay = basicShader->Load("BasicShader.glfx", 0) && shaderCompilationOkay;
 
+   basicShaderMultiDraw = new Shader(this);
+   shaderCompilationOkay = basicShaderMultiDraw->Load("basicShaderMultiDraw.glfx", 0) && shaderCompilationOkay;
 
    ballShader = new Shader(this);
    shaderCompilationOkay = ballShader->Load("ballShader.glfx", 0) && shaderCompilationOkay;

@@ -743,11 +743,14 @@ void Pin3D::InitLights()
    m_pd3dPrimaryDevice->basicShader->SetFloatArray(SHADER_lightEmission, (float *)lightEmission, 4 * lightSources);
    m_pd3dPrimaryDevice->basicShader->SetInt(SHADER_lightSources, lightSources);
 
+
+
    vec4 amb_lr = convertColor(g_pplayer->m_ptable->m_lightAmbient, g_pplayer->m_ptable->m_lightRange);
    amb_lr.x *= g_pplayer->m_globalEmissionScale;
    amb_lr.y *= g_pplayer->m_globalEmissionScale;
    amb_lr.z *= g_pplayer->m_globalEmissionScale;
    m_pd3dPrimaryDevice->basicShader->SetVector(SHADER_cAmbient_LightRange, &amb_lr);
+   
 #ifdef SEPARATE_CLASSICLIGHTSHADER
    m_pd3dPrimaryDevice->classicLightShader->SetVector(SHADER_cAmbient_LightRange", &amb_lr);
 #endif

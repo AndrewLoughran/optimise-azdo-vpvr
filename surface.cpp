@@ -642,7 +642,7 @@ void Surface::MultiDrawSetup(std::vector<Hitable::DrawElementsIndirectCommand>* 
         for (size_t i = 0; i < m_vlinesling.size(); i++)
         {
 
-            PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, slingshotVBuffer, slingIBuffer, mat, nullptr, &slingshotWorldMatrix, 9, VBufferOffset, 24, 0);
+            PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, slingshotVBuffer, slingIBuffer, mat, nullptr, &slingshotWorldMatrix, nullptr, 9, VBufferOffset, 24, 0);
             VBufferOffset += 9;
 
         }
@@ -709,16 +709,28 @@ void Surface::MultiDrawSetup(std::vector<Hitable::DrawElementsIndirectCommand>* 
 
     surfaceWorldMatrix.SetIdentity();
 
+   
+  
+
+
     // SIDE
     if (m_d.m_fSideVisible && (numVertices > 0)) {
-        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, VBuffer, IBuffer, m_ptable->GetMaterial(m_d.m_szSideMaterial), m_ptable->GetImage(m_d.m_szSideImage), &surfaceWorldMatrix, numVertices*4, 0, numVertices*6, 0);
+        Material* mat = m_ptable->GetMaterial(m_d.m_szSideMaterial);
+        if (m_d.m_fDisableLightingTop != 0.f || m_d.m_fDisableLightingBelow != 0.f){
+            mat->m_fDisableLighting_top_below = vec4(m_d.m_fDisableLightingTop, m_d.m_fDisableLightingBelow, 0.f, 0.f);
+        }
+        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, VBuffer, IBuffer, mat, m_ptable->GetImage(m_d.m_szSideImage), &surfaceWorldMatrix, nullptr, numVertices*4, 0, numVertices*6, 0);
     }
 
     // TOP/BOTTOM
     if (m_d.m_fTopBottomVisible && (numPolys > 0))
     {
         //PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, VBuffer, IBuffer, m_ptable->GetMaterial(m_d.m_szTopMaterial), m_ptable->GetImage(m_d.m_szImage), &surfaceWorldMatrix, numVertices * 4 + (!fDrop ? 0 : numVertices), numVertices * 6);
-        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, VBuffer, IBuffer, m_ptable->GetMaterial(m_d.m_szTopMaterial), m_ptable->GetImage(m_d.m_szImage), &surfaceWorldMatrix, numVertices, numVertices*4 + (!m_fIsDropped ? 0 : numVertices), numPolys*3, numVertices*6);
+        Material* mat = m_ptable->GetMaterial(m_d.m_szTopMaterial);
+        if (m_d.m_fDisableLightingTop != 0.f || m_d.m_fDisableLightingBelow != 0.f) {
+            mat->m_fDisableLighting_top_below = vec4(m_d.m_fDisableLightingTop, m_d.m_fDisableLightingBelow, 0.f, 0.f);
+        }
+        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, VBuffer, IBuffer, mat, m_ptable->GetImage(m_d.m_szImage), &surfaceWorldMatrix, nullptr, numVertices, numVertices*4 + (!m_fIsDropped ? 0 : numVertices), numPolys*3, numVertices*6);
     }
 
     m_d.m_heightbottom = oldBottomHeight;

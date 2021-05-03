@@ -1689,32 +1689,31 @@ HRESULT Player::Init(PinTable * const ptable, const HWND hwndProgress, const HWN
             m = m_vHitNonTrans[i]->GetMaterialID();
          }
    }
-
+   */
    if (m_vHitTrans.size() > 0)
    {
-      std::stable_sort(m_vHitTrans.begin(), m_vHitTrans.end(), CompareHitableImage); // see above
+      //std::stable_sort(m_vHitTrans.begin(), m_vHitTrans.end(), CompareHitableImage); // see above
                                                                                      // sort by vertexbuffer not useful currently
-      std::stable_sort(m_vHitTrans.begin(), m_vHitTrans.end(), CompareHitableMaterial);
+      //std::stable_sort(m_vHitTrans.begin(), m_vHitTrans.end(), CompareHitableMaterial);
       std::stable_sort(m_vHitTrans.begin(), m_vHitTrans.end(), CompareHitableDepth);
 
-      m = m_vHitTrans[0]->GetMaterialID();
-      for (size_t i = 1; i < m_vHitTrans.size(); ++i)
-         if (m_vHitTrans[i]->GetMaterialID() != m)
-         {
-            material_flips++;
-            m = m_vHitTrans[i]->GetMaterialID();
-         }
+
    }
-   */
+   
 
 
 
 // MULTI INIT STARTS HERE
-   bool shaderCompilationOkay = true;
-   m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw = new Shader(m_pin3d.m_pd3dPrimaryDevice);
-   shaderCompilationOkay = m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->Load("basicShaderMultiDraw.glfx", 0);
-   if (!shaderCompilationOkay)
-       ReportError("Fatal Error: basicShaderMultiDraw compilation failed!", -1, __FILE__, __LINE__);  
+   //bool shaderCompilationOkay = true;
+   //m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw = new Shader(m_pin3d.m_pd3dPrimaryDevice);
+   // shaderCompilationOkay = basicShaderMultiDraw->Load("basicShaderMultiDraw.glfx", 0)
+   //if (!shaderCompilationOkay)
+    //   ReportError("Fatal Error: basicShaderMultiDraw compilation failed!", -1, __FILE__, __LINE__);  
+
+   //m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->SetBool(SHADER_hdrEnvTextures, (m_pin3d.m_envTexture ? m_pin3d.m_envTexture : &m_pin3d.envTexture)->IsHDR());
+   //m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->SetTexture(SHADER_Texture1, m_pin3d.m_envTexture ? m_pin3d.m_envTexture : &m_pin3d.envTexture, false);
+   //m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->SetTexture(SHADER_Texture2, m_pin3d.m_pd3dPrimaryDevice->m_texMan.LoadTexture(m_pin3d.m_envRadianceTexture, false, false), false);
+
 
 
 
@@ -1745,6 +1744,9 @@ HRESULT Player::Init(PinTable * const ptable, const HWND hwndProgress, const HWN
 
        }
    }   
+
+   NON_TRANS_COUNT = m_commands.size();
+
    // /*
    // populate every objects verts/indices/materials/matrices and all draw commands  
    for (size_t i = 0; i < m_vHitTrans.size(); ++i)
@@ -1761,6 +1763,10 @@ HRESULT Player::Init(PinTable * const ptable, const HWND hwndProgress, const HWN
 
        }
    }      
+
+   TRANS_COUNT = m_commands.size() - NON_TRANS_COUNT;
+
+
    //*/
    /*
    // BUMPERS ONLY FOR DEBUGGING
@@ -3644,6 +3650,7 @@ void Player::DrawBulbLightBuffer()
    m_pin3d.m_pd3dPrimaryDevice->SetRenderTarget(m_pin3d.m_pd3dPrimaryDevice->GetBackBufferTexture(), false);
 
    m_pin3d.m_pd3dPrimaryDevice->basicShader->SetTexture(SHADER_Texture3, m_pin3d.m_pd3dPrimaryDevice->GetBloomBufferTexture(), false);
+   //m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->SetTexture(SHADER_Texture3, m_pin3d.m_pd3dPrimaryDevice->GetBloomBufferTexture(), false);
 }
 
 void Player::RenderDynamics()
@@ -3727,7 +3734,7 @@ void Player::RenderDynamics()
 
    m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->SetTechnique(SHADER_TECHNIQUE_basic_with_texture);
    //g_pplayer->m_pin3d.EnableAlphaBlend(false);
-   m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->BeginMulti(&debugTex);
+   m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->BeginMulti();
    //m_pin3d.m_pd3dPrimaryDevice->SetRenderStateDepthBias(0.0f);
    //m_pin3d.m_pd3dPrimaryDevice->SetRenderState(RenderDevice::ZWRITEENABLE, RenderDevice::RS_TRUE);
    //m_pin3d.m_pd3dPrimaryDevice->SetRenderStateCulling(RenderDevice::CULL_NONE);
@@ -3844,8 +3851,8 @@ void Player::RenderDynamics()
 
    // https://web.archive.org/web/20180701213321/http://www.openglsuperbible.com/2013/10/16/the-road-to-one-million-draws/
    // If you really must use blending, unsorted, amongst all your other rendering calls, then just leave blending on! Quite possibly, the most common blending configuration is :
-   //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-   //glBlendEquation(GL_FUNC_ADD);
+   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+   glBlendEquation(GL_FUNC_ADD);
    
    //glUnmapNamedBuffer(matrices_buffer);
    //glUnmapNamedBuffer(indirect_draw_buffer);
@@ -3910,11 +3917,6 @@ void Player::RenderDynamics()
        }
    }
    */
-   //glTextureBarrier();
-   //glFinish();
-   //MAX_DRAWS = 2;
-
-  // glBindBuffer(GL_UNIFORM_BLOCK, 0);
 
    glBindVertexArray(multiVAO);
 
@@ -3926,6 +3928,65 @@ void Player::RenderDynamics()
    glNamedBufferSubData(matrices_buffer, 0, sizeof(Hitable::ObjMatrices)* MAX_DRAWS, _allMatrices.data());
 
    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, material_buffer);
+
+   if (m_pin3d.m_envTexture) {
+       glBindTextureUnit(1, m_pin3d.m_pd3dPrimaryDevice->m_texMan.LoadTexture(m_pin3d.m_envTexture->m_pdsBuffer, false, false)->texture); // m_pin3d.m_envTexture ? m_pin3d.m_pd3dPrimaryDevice->m_texMan.LoadTexture(m_pin3d.m_envTexture->m_pdsBuffer, false, false) : &m_pin3d.envTexture)
+   }
+   else {
+       glBindTextureUnit(1, 0);
+   }
+   //glUniform1i(glGetUniformLocation(m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->m_currentTechnique->program, "Texture1"), 0);
+   glBindTextureUnit(2, m_pin3d.m_pd3dPrimaryDevice->m_texMan.LoadTexture(m_pin3d.m_envRadianceTexture, false, false)->texture);
+   //glUniform1i(glGetUniformLocation(m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->m_currentTechnique->program, "Texture2"), 0);
+   glBindTextureUnit(3, m_pin3d.m_pd3dPrimaryDevice->GetBloomBufferTexture()->texture);
+   //glUniform1i(glGetUniformLocation(m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->m_currentTechnique->program, "Texture3"), 0);
+   // Texture4 - Normap map texture, should be a bindless tex
+   //glBindTextureUnit(4, );
+
+
+
+   // taken from Pin3D::InitLights() higher up in this function
+   g_pplayer->m_ptable->m_Light[0].pos.x = g_pplayer->m_ptable->m_right * 0.5f;
+   g_pplayer->m_ptable->m_Light[1].pos.x = g_pplayer->m_ptable->m_right * 0.5f;
+   g_pplayer->m_ptable->m_Light[0].pos.y = g_pplayer->m_ptable->m_bottom * (float)(1.0 / 3.0);
+   g_pplayer->m_ptable->m_Light[1].pos.y = g_pplayer->m_ptable->m_bottom * (float)(2.0 / 3.0);
+   g_pplayer->m_ptable->m_Light[0].pos.z = g_pplayer->m_ptable->m_lightHeight;
+   g_pplayer->m_ptable->m_Light[1].pos.z = g_pplayer->m_ptable->m_lightHeight;
+
+   vec4 emission = convertColor(g_pplayer->m_ptable->m_Light[0].emission);
+   // Multiplying emission by the global emissionscale creates some weird results, some objects get very bright
+   //emission.x *= g_pplayer->m_ptable->m_lightEmissionScale*g_pplayer->m_globalEmissionScale;
+   //emission.y *= g_pplayer->m_ptable->m_lightEmissionScale*g_pplayer->m_globalEmissionScale;
+   //emission.z *= g_pplayer->m_ptable->m_lightEmissionScale*g_pplayer->m_globalEmissionScale;
+
+   float lightPos[MAX_LIGHT_SOURCES][4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+   float lightEmission[MAX_LIGHT_SOURCES][4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+   int lightSources = MAX_LIGHT_SOURCES;
+
+   for (unsigned int i = 0; i < MAX_LIGHT_SOURCES; i++)
+   {
+       memcpy(&lightPos[i], &g_pplayer->m_ptable->m_Light[i].pos, sizeof(float) * 3);
+       memcpy(&lightEmission[i], &emission, sizeof(float) * 3);
+   }
+
+   vec4 amb_lr = convertColor(g_pplayer->m_ptable->m_lightAmbient, g_pplayer->m_ptable->m_lightRange);
+   amb_lr.x *= g_pplayer->m_globalEmissionScale;
+   amb_lr.y *= g_pplayer->m_globalEmissionScale;
+   amb_lr.z *= g_pplayer->m_globalEmissionScale;
+
+   GLfloat amb[4] = { amb_lr.x, amb_lr.y, amb_lr.z, amb_lr.w };
+
+   //const vec4 st(m_ptable->m_envEmissionScale * m_globalEmissionScale, m_pin3d.m_envTexture ? (float)m_pin3d.m_envTexture->m_height/*+m_pin3d.m_envTexture->m_width)*0.5f*/ : (float)m_pin3d.envTexture.m_height/*+m_pin3d.envTexture.m_width)*0.5f*/, 0.f, 0.f);
+   // already defined higher up in function
+   GLfloat env[4] = { st.x, st.y, st.z, st.w };
+   //m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->SetVector(SHADER_fenvEmissionScale_TexWidth, &st);
+
+   // MaterialMultiDraw.fxh
+   glUniform4fv(5, 2, *lightPos); // layout (location = 5) uniform vec4 lightPos[iLightPointNum];
+   glUniform4fv(7, 1, *lightEmission); // layout(location = 6) uniform vec4 lightEmission[iLightPointNum];
+   glUniform1i(9, lightSources);     // layout (location = 7) uniform int lightSources;
+   glUniform4fv(10, 1, amb); // layout (location = 8) uniform vec4 cAmbient_LightRange;
+   glUniform2fv(11, 1, env); // layout (location = 9) uniform vec2 fenvEmissionScale_TexWidth;
 
    // MATERIALS PERSISTENT MAPPED BUFFER
    /*
@@ -3950,7 +4011,52 @@ void Player::RenderDynamics()
    };
    */
 
-   glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, 0, ACTUAL_DRAWS, 0);
+   // non-transparent objects
+   //glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, 0, ACTUAL_DRAWS, 0);
+   glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, 0, NON_TRANS_COUNT, 0);
+
+   DrawBalls();
+
+
+
+
+
+
+   m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->SetTechnique(SHADER_TECHNIQUE_basic_with_texture);
+   //g_pplayer->m_pin3d.EnableAlphaBlend(false);
+   m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->BeginMulti();
+
+   glBindVertexArray(multiVAO);
+
+   glBindBuffer(GL_DRAW_INDIRECT_BUFFER, indirect_draw_buffer);
+
+   //const GLuint ssboBuffers[2] = { matrices_buffer, material_buffer };
+   //glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, 2, 2, ssboBuffers);
+   glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, matrices_buffer);
+   glNamedBufferSubData(matrices_buffer, 0, sizeof(Hitable::ObjMatrices) * MAX_DRAWS, _allMatrices.data());
+
+   glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, material_buffer);
+
+   if (m_pin3d.m_envTexture) {
+       glBindTextureUnit(1, m_pin3d.m_pd3dPrimaryDevice->m_texMan.LoadTexture(m_pin3d.m_envTexture->m_pdsBuffer, false, false)->texture); // m_pin3d.m_envTexture ? m_pin3d.m_pd3dPrimaryDevice->m_texMan.LoadTexture(m_pin3d.m_envTexture->m_pdsBuffer, false, false) : &m_pin3d.envTexture)
+   }
+   else {
+       glBindTextureUnit(1, 0);
+   }
+   //glUniform1i(glGetUniformLocation(m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->m_currentTechnique->program, "Texture1"), 0);
+   glBindTextureUnit(2, m_pin3d.m_pd3dPrimaryDevice->m_texMan.LoadTexture(m_pin3d.m_envRadianceTexture, false, false)->texture);
+   //glUniform1i(glGetUniformLocation(m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->m_currentTechnique->program, "Texture2"), 0);
+   glBindTextureUnit(3, m_pin3d.m_pd3dPrimaryDevice->GetBloomBufferTexture()->texture);
+
+   // MaterialMultiDraw.fxh
+   glUniform4fv(5, 2, *lightPos); // layout (location = 5) uniform vec4 lightPos[iLightPointNum];
+   glUniform4fv(7, 1, *lightEmission); // layout(location = 6) uniform vec4 lightEmission[iLightPointNum];
+   glUniform1i(9, lightSources);     // layout (location = 7) uniform int lightSources;
+   glUniform4fv(10, 1, amb); // layout (location = 8) uniform vec4 cAmbient_LightRange;
+   glUniform2fv(11, 1, env); // layout (location = 9) uniform vec2 fenvEmissionScale_TexWidth;
+
+   // transparent objects
+   glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT,(void*) (NON_TRANS_COUNT * sizeof(Hitable::DrawElementsIndirectCommand)), TRANS_COUNT, 0);
 
 
    /*
@@ -4007,7 +4113,8 @@ void Player::RenderDynamics()
          if (m_vHitNonTrans.at(i)->IsDMD())
             m_vHitNonTrans.at(i)->RenderDynamic();
       
-      DrawBalls();
+      //DrawBalls();
+      
 
 #ifndef ENABLE_SDL
 #ifdef FPS

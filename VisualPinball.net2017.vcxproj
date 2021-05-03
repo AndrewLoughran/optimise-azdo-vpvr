@@ -1085,7 +1085,9 @@ copy "$(MSBuildProjectDirectory)\dll\x64\*.dll" "%25VPIN_DIR%25"</Command>
     <ClCompile Include="IndexBuffer.cpp" />
     <ClCompile Include="math\math.cpp" />
     <ClCompile Include="MemoryStatus.cpp" />
-    <ClCompile Include="pin\hitable.cpp" />
+    <ClCompile Include="pin\hitable.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release_SDL|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="rubber.cpp" />
     <ClCompile Include="hash.cpp" />
     <ClCompile Include="kdtree.cpp" />

@@ -79,7 +79,8 @@ struct MatProperties
 {
     sampler2D texHandle;    
     //uvec2 texHandle;
-    //sampler2D paddingHandle;    
+    sampler2D normalMapHandle;    
+    sampler2D paddingHandle;    
 
     float AZDO_alphaTestValue;
     float padding1;
@@ -88,7 +89,7 @@ struct MatProperties
     vec4 AZDO_cGlossy_ImageLerp;
     vec4 AZDO_cBase_Alpha;
     vec4 AZDO_Roughness_WrapL_Edge_Thickness;
-
+    vec4 AZDO_fDisableLighting_top_below;
 
 
     // booleans (they are floats for std140 packing reasons)
@@ -121,19 +122,19 @@ layout (std430, binding = 0) buffer MATRICES_BLOCK
 };
 flat in uint draw_id_fs;
 
-uniform sampler2D Texture0; // base texture
-uniform sampler2D Texture1; // envmap
-uniform sampler2D Texture2; // envmap radiance
-uniform sampler2D Texture3; // bulb light buffer
-uniform sampler2D Texture4; // normal map
+layout (binding = 0) uniform sampler2D Texture0; // base texture
+layout (binding = 1) uniform sampler2D Texture1; // envmap
+layout (binding = 2) uniform sampler2D Texture2; // envmap radiance
+layout (binding = 3) uniform sampler2D Texture3; // bulb light buffer
+layout (binding = 4) uniform sampler2D Texture4; // normal map
 
-uniform bool hdrEnvTextures;
-uniform bool objectSpaceNormalMap;
-uniform bool is_metal;
-uniform bool doNormalMapping;
+uniform bool OLD_hdrEnvTextures;
+uniform bool OLD_objectSpaceNormalMap;
+uniform bool OLD_is_metal;
+uniform bool OLD_doNormalMapping;
 
 #include "Helpers.fxh"
-#include "Material.fxh"
+#include "MaterialMultiDraw.fxh"
 
 uniform vec4 cClearcoat_EdgeAlpha;
 uniform vec4 cGlossy_ImageLerp;
@@ -170,9 +171,9 @@ mat3 TBN_trafo(vec3 N, vec3 V, vec2 uv)
 	return mat3(T, B, N * sqrt( max(dot(T,T), dot(B,B)) )); // inverse scale, as will be normalized anyhow later-on (to save some mul's)
 }
 
-vec3 normal_map(vec3 N, vec3 V, vec2 uv)
+vec3 normal_map(vec3 N, vec3 V, vec2 uv, bool objectSpaceNormalMap, sampler2D normalMap)
 {
-   vec3 tn = texture(Texture4, uv).xyz * (255./127.) - (128./127.); // Note that Blender apparently does export tangent space normalmaps for Z (Blue) at full range, so 0..255 -> 0..1, which misses an option for here!
+   vec3 tn = texture(normalMap, uv).xyz * (255./127.) - (128./127.); // Note that Blender apparently does export tangent space normalmaps for Z (Blue) at full range, so 0..255 -> 0..1, which misses an option for here!
 
    if (objectSpaceNormalMap)
    {
@@ -196,7 +197,7 @@ float GeometricOpacity(float NdotV, float alpha, vec4 cClearcoat_EdgeAlpha, vec4
     return mix(alpha, 1.0, g); // fake opacity lerp to ‘shadowed’
 }
 
-vec3 lightLoop(vec3 pos, vec3 N, vec3 V, vec3 diffuse, vec3 glossy, vec3 specular, float edge, bool fix_normal_orientation, bool is_metal) // input vectors (N,V) are normalized for BRDF evals
+vec3 lightLoop(vec3 pos, vec3 N, vec3 V, vec3 diffuse, vec3 glossy, vec3 specular, float edge, bool fix_normal_orientation, bool is_metal, bool hdrEnvTextures, vec4 Roughness_WrapL_Edge_Thickness, vec4 fDisableLighting_top_below ) // input vectors (N,V) are normalized for BRDF evals
 {
    // normalize BRDF layer inputs //!! use diffuse = (1-glossy)*diffuse instead?
    float diffuseMax = max(diffuse.x,max(diffuse.y,diffuse.z));
@@ -224,11 +225,11 @@ vec3 lightLoop(vec3 pos, vec3 N, vec3 V, vec3 diffuse, vec3 glossy, vec3 specula
     if((!is_metal && (diffuseMax > 0.0)) || (glossyMax > 0.0))
     {
         for(int i = 0; i < lightSources; i++)//Rendering issues when doing this in an loop. Weird.
-            color += DoPointLight(pos, N, V, diffuse, glossy, edge, i, is_metal); // no clearcoat needed as only pointlights so far
+            color += DoPointLight(pos, N, V, diffuse, glossy, edge, i, is_metal, Roughness_WrapL_Edge_Thickness, fDisableLighting_top_below); // no clearcoat needed as only pointlights so far
     }
 
    if(!is_metal && (diffuseMax > 0.0))
-      color += DoEnvmapDiffuse(normalize((vec4(N,0.0) * matView).xyz), diffuse); // trafo back to world for lookup into world space envmap // actually: mul(vec4(N,0.0), matViewInverseInverseTranspose), but optimized to save one matrix
+      color += DoEnvmapDiffuse(normalize((vec4(N,0.0) * matView).xyz), diffuse, hdrEnvTextures); // trafo back to world for lookup into world space envmap // actually: mul(vec4(N,0.0), matViewInverseInverseTranspose), but optimized to save one matrix
 
    if((glossyMax > 0.0) || (specularMax > 0.0))
    {  
@@ -246,21 +247,21 @@ vec3 lightLoop(vec3 pos, vec3 N, vec3 V, vec3 diffuse, vec3 glossy, vec3 specula
          // Use low-res mipmap for metallic objects to reduce shimmering in VR
          // Closer objects we query the lod and add 2 to make it a bit blurrier but always at least 6.0
          // Far away objects we get smallest lod and divide by 1.6 which is a good trade-off between "metallic enough" and "low shimmer"
-         //float mipLevel = min(textureQueryLod(materials[draw_id_fs].texHandle, Ruv).y+2.0, textureQueryLevels(materials[draw_id_fs].texHandle)/1.6);
-         float mipLevel = 6.0;
+         float mipLevel = min(textureQueryLod(Texture1, Ruv).y+2.0, textureQueryLevels(Texture1)/1.6);
+         
          if (mipLevel < 6.0)
             mipLevel = 6.0;
-        // colorMip = textureLod(materials[draw_id_fs].texHandle, Ruv, mipLevel);
+         colorMip = textureLod(Texture1, Ruv, mipLevel);
       }
       else
       {
          // For non-metallic objects we use different values
-         //colorMip = texture(materials[draw_id_fs].texHandle, Ruv);
-        // float mipLevel = min(textureQueryLod(materials[draw_id_fs].texHandle, Ruv).y, textureQueryLevels(materials[draw_id_fs].texHandle)/2);
-        float mipLevel = 4.0;
+         //colorMip = texture(Texture1, Ruv);
+         float mipLevel = min(textureQueryLod(Texture1, Ruv).y, textureQueryLevels(Texture1)/2);
+        
          if (mipLevel < 4.0)
             mipLevel = 4.0;
-        // colorMip = textureLod(materials[draw_id_fs].texHandle, Ruv, mipLevel);
+         colorMip = textureLod(Texture1, Ruv, mipLevel);
       }
          
       vec3 envTex;
@@ -276,8 +277,8 @@ vec3 lightLoop(vec3 pos, vec3 N, vec3 V, vec3 diffuse, vec3 glossy, vec3 specula
       // Envmap2ndLayer
 	   if(fix_normal_orientation && specularMax > 0.0)
       {
-        //vec3 w = FresnelSchlick(specular, NdotV, materials[draw_id_fs].Roughness_WrapL_Edge_Thickness.z);
-        //color = mix(color, envTex * fenvEmissionScale_TexWidth.x, w);
+        vec3 w = FresnelSchlick(specular, NdotV, Roughness_WrapL_Edge_Thickness.z);
+        color = mix(color, envTex * fenvEmissionScale_TexWidth.x, w);
       }
    }
 
@@ -314,11 +315,12 @@ void main()
    gl_Position = vec4(vPosition, 1.0);
    gl_ClipDistance[0] = dot(vPosition, vec3(0, 1, 0)); // For Render Dynamic Mirror when enabling clipping.
    tex01_gs = tc;
-   vec4 bulbPos = (objMatrices[gl_DrawIDARB].matWorldViewProj[0]*vec4(vPosition, 1.0));
+   vec4 bulbPos = (objMatrices[draw_id].matWorldViewProj[0]*vec4(vPosition, 1.0));
    tex03_gs = vec2(bulbPos.xy/bulbPos.w);
-   worldPos_gs = (objMatrices[gl_DrawIDARB].matWorldView*vec4(vPosition, 1.0)).xyz;
-   normal_gs = normalize((objMatrices[gl_DrawIDARB].matWorldViewInverseTranspose* vec4(vNormal, 1) ).xyz);
-   draw_id_gs = gl_DrawIDARB;
+   worldPos_gs = (objMatrices[draw_id].matWorldView*vec4(vPosition, 1.0)).xyz;
+   normal_gs = normalize((objMatrices[draw_id].matWorldViewInverseTranspose* vec4(vNormal, 1) ).xyz);
+   //draw_id_gs = gl_DrawIDARB;
+   draw_id_gs = draw_id;
 }
 
 ////vs_notex_main
@@ -557,12 +559,14 @@ void main() {
     
     // material data
     vec4 pixel = texture(materials[draw_id_fs].texHandle, tex01);
-    //vec4 texCoordDebug = vec4(tex01, 0, 1); 
+    sampler2D normalMap = materials[draw_id_fs].normalMapHandle;
+    //vec4 pixel = vec4(tex01, 0, 1); 
 
     vec4 cClearcoat_EdgeAlpha = materials[draw_id_fs].AZDO_cClearcoat_EdgeAlpha;
     vec4 cGlossy_ImageLerp = materials[draw_id_fs].AZDO_cGlossy_ImageLerp;
     vec4 cBase_Alpha = materials[draw_id_fs].AZDO_cBase_Alpha;
     vec4 Roughness_WrapL_Edge_Thickness = materials[draw_id_fs].AZDO_Roughness_WrapL_Edge_Thickness;
+    vec4 fDisableLighting_top_below = materials[draw_id_fs].AZDO_fDisableLighting_top_below;
 
     float alphaTestValue = materials[draw_id_fs].AZDO_alphaTestValue;
 
@@ -590,26 +594,24 @@ void main() {
    vec3 V = normalize(-worldPos);
    vec3 N = normalize(normal);
 
-   //if (materials[draw_id_fs].doNormalMapping)
-	 // N = normal_map(N, normalize(worldPos), tex01);
+   if (doNormalMapping)
+	  N = normal_map(N, normalize(worldPos), tex01, objectSpaceNormalMap, normalMap);
    
    //color = vec4((N+1.0)*0.5,1.0); return; // visualize normals
 
 
-
-   //color.xyz = lightLoop(worldPos, N, V, diffuse, glossy, specular, edge, !doNormalMapping, is_metal);
+   //color.xyz = pixel.xyz;
+   color.xyz = lightLoop(worldPos, N, V, diffuse, glossy, specular, edge, !doNormalMapping, is_metal, hdrEnvTextures, Roughness_WrapL_Edge_Thickness, fDisableLighting_top_below);
    color.a = clamp(pixel.a * cBase_Alpha.a, 0.0, 1.0);
 
    if (cBase_Alpha.a < 1.0 && color.a < 1.0) {
       color.a = GeometricOpacity(max(dot(N,V), 0.0), color.a, cClearcoat_EdgeAlpha, Roughness_WrapL_Edge_Thickness);
 
-     // if (fDisableLighting_top_below.y < 1.0)
-     // {
-         // add light from "below" from user-flagged bulb lights, pre-rendered/blurred in previous renderpass //!! sqrt = magic
-
-         // CURRENTLY USING WRONG TEX ('Texture0', instead of the correct 'Texture3' so will look wrong but should run for now)
-       //  color.xyz += mix(sqrt(diffuse)*texture(materials[draw_id_fs].texHandle, vec2(0.5*tex03.xy)+0.5).xyz*color.a, vec3(0.), fDisableLighting_top_below.y); //!! depend on normal of light (unknown though) vs geom normal, too?
-     // }
+      if (fDisableLighting_top_below.y < 1.0)
+      {
+          //add light from "below" from user-flagged bulb lights, pre-rendered/blurred in previous renderpass //!! sqrt = magic
+         color.xyz += mix(sqrt(diffuse)*texture(Texture3, vec2(0.5*tex03.xy)+0.5).xyz*color.a, vec3(0.), fDisableLighting_top_below.y); //!! depend on normal of light (unknown though) vs geom normal, too?
+      }
    }
 
    //vec4 pixel2 = texture(sampler2D(materials[draw_id_fs].texHandle), tex01); // declaring texHandle as uvec2 in struct and converting here works but is unnecessary
@@ -619,7 +621,7 @@ void main() {
    //color = vec4(pixel.xyz, 0.9);
    //color = vec4(pixel2.xyz, 0.9);
 
-   color.xyz = pixel.xyz;
+   //color.xyz = pixel.xyz;
 }
 
 ////ps_main_depth_only_without_texture

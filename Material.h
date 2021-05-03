@@ -39,13 +39,14 @@ public:
       m_fEdge = 1.0f;
       m_fEdgeAlpha = 1.0f;
       m_fOpacity = 1.0f;
+      m_fDisableLighting_top_below = { 0.0f,0.0f,0.0f,0.0f };
       m_cBase = 0xB469FF;
       m_cGlossy = 0;
       m_cClearcoat = 0;
       m_bIsMetal = false;
       m_bOpacityActive = false;
-
-     
+      m_objectSpaceNormalMap = false;
+      m_bDoNormalMapping = false;
 
       m_fElasticity = 0.0f;
       m_fElasticityFalloff = 0.0f;
@@ -102,11 +103,14 @@ public:
    float m_fEdge;
    float m_fEdgeAlpha;
    float m_fOpacity;
+   vec4 m_fDisableLighting_top_below;
    COLORREF m_cBase;
    COLORREF m_cGlossy;
    COLORREF m_cClearcoat;
    bool m_bIsMetal;
    bool m_bOpacityActive;
+   bool m_objectSpaceNormalMap;
+   bool m_bDoNormalMapping;
 
 
 

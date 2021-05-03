@@ -686,7 +686,7 @@ void Shader::setAttributeFormat(DWORD fvf)
 #endif
 }
 
-void Shader::BeginMulti(GLuint* debugTex) {
+void Shader::BeginMulti() {
     m_currentTechnique = &shaderList[technique];
     glUseProgram(m_currentTechnique->program);
 
@@ -695,8 +695,8 @@ void Shader::BeginMulti(GLuint* debugTex) {
     Shader::GetTransform(TRANSFORMSTATE_VIEW, &viewMatrix, 1);
     glUniformMatrix4fv(glGetUniformLocation(m_currentTechnique->program, "matView"), 1, GL_FALSE, (float*)&viewMatrix);
 
-    glBindTextureUnit(0, *debugTex);
-    glUniform1i(glGetUniformLocation(m_currentTechnique->program, "Texture0"), 0);
+    //glBindTextureUnit(0, *debugTex);
+    //glUniform1i(0, 0);
 
     // DEBUG
 
