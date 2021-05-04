@@ -162,6 +162,13 @@ public:
    void setLightState(const LightState newVal);
    void RenderBulbMesh();
 
+   void MultiDrawSetup(std::vector<DrawElementsIndirectCommand>* m_commands,
+       std::vector<Vertex3D_NoTex2>* _allVertices,
+       std::vector<unsigned int>* _allIndices,
+       std::vector<MaterialProperties>* _allMaterials,
+       std::vector<ObjMatrices>* _allMatrices,
+       std::vector<Matrix3D>* _allWorldMatrices);
+
    LightData m_d;
    LightState m_realState;
    eastl::vector<RenderVertex> m_vvertex;

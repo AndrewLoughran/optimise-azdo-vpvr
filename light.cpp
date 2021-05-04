@@ -485,6 +485,302 @@ void Light::RenderBulbMesh()
    pd3dDevice->basicShader->End();
 }
 
+void Light::MultiDrawSetup(std::vector<DrawElementsIndirectCommand>* m_commands,
+    std::vector<Vertex3D_NoTex2>* _allVertices,
+    std::vector<unsigned int>* _allIndices,
+    std::vector<MaterialProperties>* _allMaterials,
+    std::vector<ObjMatrices>* _allMatrices,
+    std::vector<Matrix3D>* _allWorldMatrices) {
+    /*
+    ////// STRUCTURE ////////
+
+    Optional BulbMesh object copmrised of bulb light & bulb socket sub-objects
+
+
+    */
+    /*
+
+    // RenderSetup logic
+        {
+            
+            RenderDevice* const pd3dDevice = m_fBackglass ? g_pplayer->m_pin3d.m_pd3dSecondaryDevice : g_pplayer->m_pin3d.m_pd3dPrimaryDevice;
+
+            m_iblinkframe = 0;
+            m_d.m_time_msec = g_pplayer->m_time_msec;
+            m_updateLightShape = false;
+
+            m_initSurfaceHeight = m_ptable->GetSurfaceHeight(m_d.m_szSurface, m_d.m_vCenter.x, m_d.m_vCenter.y) * m_ptable->m_BG_scalez[m_ptable->m_BG_current_set];
+            m_surfaceMaterial = m_ptable->GetSurfaceMaterial(m_d.m_szSurface);
+            m_surfaceTexture = m_ptable->GetSurfaceImage(m_d.m_szSurface);
+
+            m_surfaceHeight = m_initSurfaceHeight;
+
+            if (m_realState == LightStateBlinking)
+                RestartBlinker(g_pplayer->m_time_msec);
+            else if (m_duration > 0 && m_realState == LightStateOn)
+            {
+                m_timerDurationEndTime = g_pplayer->m_time_msec + m_duration;
+            }
+
+            const bool isOn = (m_realState == LightStateBlinking) ? (m_rgblinkpattern[m_iblinkframe] == '1') : (m_realState != LightStateOff);
+            if (isOn)
+                m_d.m_currentIntensity = m_d.m_intensity * m_d.m_intensity_scale;
+            else
+                m_d.m_currentIntensity = 0.0f;
+
+            if (m_d.m_BulbLight && m_d.m_showBulbMesh)
+            {
+                if (bulbLightIndexBuffer)
+                    bulbLightIndexBuffer->release();
+                bulbLightIndexBuffer = IndexBuffer::CreateAndFillIndexBuffer(bulbLightNumFaces, bulbLightIndices);
+
+                if (bulbLightVBuffer)
+                    bulbLightVBuffer->release();
+                VertexBuffer::CreateVertexBuffer(bulbLightNumVertices, 0, MY_D3DFVF_NOTEX2_VERTEX, &bulbLightVBuffer);
+
+                Vertex3D_NoTex2* buf;
+                bulbLightVBuffer->lock(0, 0, (void**)&buf, VertexBuffer::WRITEONLY);
+                for (unsigned int i = 0; i < bulbLightNumVertices; i++)
+                {
+                    buf[i].x = bulbLight[i].x * m_d.m_meshRadius + m_d.m_vCenter.x;
+                    buf[i].y = bulbLight[i].y * m_d.m_meshRadius + m_d.m_vCenter.y;
+                    buf[i].z = bulbLight[i].z * m_d.m_meshRadius * m_ptable->m_BG_scalez[m_ptable->m_BG_current_set] + m_surfaceHeight;
+                    buf[i].nx = bulbLight[i].nx;
+                    buf[i].ny = bulbLight[i].ny;
+                    buf[i].nz = bulbLight[i].nz;
+                    buf[i].tu = bulbLight[i].tu;
+                    buf[i].tv = bulbLight[i].tv;
+                }
+                bulbLightVBuffer->unlock();
+
+                if (bulbSocketIndexBuffer)
+                    bulbSocketIndexBuffer->release();
+                bulbSocketIndexBuffer = IndexBuffer::CreateAndFillIndexBuffer(bulbSocketNumFaces, bulbSocketIndices);
+
+                if (bulbSocketVBuffer)
+                    bulbSocketVBuffer->release();
+                VertexBuffer::CreateVertexBuffer(bulbSocketNumVertices, 0, MY_D3DFVF_NOTEX2_VERTEX, &bulbSocketVBuffer);
+
+                bulbSocketVBuffer->lock(0, 0, (void**)&buf, VertexBuffer::WRITEONLY);
+                for (unsigned int i = 0; i < bulbSocketNumVertices; i++)
+                {
+                    buf[i].x = bulbSocket[i].x * m_d.m_meshRadius + m_d.m_vCenter.x;
+                    buf[i].y = bulbSocket[i].y * m_d.m_meshRadius + m_d.m_vCenter.y;
+                    buf[i].z = bulbSocket[i].z * m_d.m_meshRadius * m_ptable->m_BG_scalez[m_ptable->m_BG_current_set] + m_surfaceHeight;
+                    buf[i].nx = bulbSocket[i].nx;
+                    buf[i].ny = bulbSocket[i].ny;
+                    buf[i].nz = bulbSocket[i].nz;
+                    buf[i].tu = bulbSocket[i].tu;
+                    buf[i].tv = bulbSocket[i].tv;
+                }
+                bulbSocketVBuffer->unlock();
+            }
+
+            PrepareMoversCustom();
+        }
+    
+    // RenderStatic logic
+        {
+         // if visible, renderbulbmesh 
+            if (m_d.m_BulbLight && m_d.m_showBulbMesh && m_d.m_staticBulbMesh)
+                RenderBulbMesh();
+        }
+    // RenderDynamic logic
+        {
+            RenderDevice* const pd3dDevice = m_fBackglass ? g_pplayer->m_pin3d.m_pd3dSecondaryDevice : g_pplayer->m_pin3d.m_pd3dPrimaryDevice;
+
+            TRACE_FUNCTION();
+
+            if (!m_d.m_fVisible || m_ptable->m_fReflectionEnabled)
+                return;
+
+            if (customMoverVBuffer == NULL) // in case of degenerate light
+                return;
+
+            if (m_fBackglass && !GetPTable()->GetDecalsEnabled())
+                return;
+
+            if (m_d.m_BulbLight && m_d.m_showBulbMesh && !m_d.m_staticBulbMesh)
+                RenderBulbMesh();
+
+            const U32 old_time_msec = (m_d.m_time_msec < g_pplayer->m_time_msec) ? m_d.m_time_msec : g_pplayer->m_time_msec;
+            m_d.m_time_msec = g_pplayer->m_time_msec;
+            const float diff_time_msec = (float)(g_pplayer->m_time_msec - old_time_msec);
+
+            if ((m_duration > 0) && (m_timerDurationEndTime < m_d.m_time_msec))
+            {
+                m_realState = (LightState)m_finalState;
+                m_duration = 0;
+                if (m_realState == LightStateBlinking)
+                    RestartBlinker(g_pplayer->m_time_msec);
+            }
+            if (m_realState == LightStateBlinking)
+                UpdateBlinker(g_pplayer->m_time_msec);
+
+            const bool isOn = (m_realState == LightStateBlinking) ? (m_rgblinkpattern[m_iblinkframe] == '1') : (m_realState != LightStateOff);
+
+            if (isOn)
+            {
+                if (m_d.m_currentIntensity < m_d.m_intensity * m_d.m_intensity_scale)
+                {
+                    m_d.m_currentIntensity += m_d.m_fadeSpeedUp * diff_time_msec;
+                    if (m_d.m_currentIntensity > m_d.m_intensity * m_d.m_intensity_scale)
+                        m_d.m_currentIntensity = m_d.m_intensity * m_d.m_intensity_scale;
+                }
+            }
+            else
+            {
+                if (m_d.m_currentIntensity > 0.0f)
+                {
+                    m_d.m_currentIntensity -= m_d.m_fadeSpeedDown * diff_time_msec;
+                    if (m_d.m_currentIntensity < 0.0f)
+                        m_d.m_currentIntensity = 0.0f;
+                }
+            }
+
+            Texture* offTexel = NULL;
+
+            // early out all lights with no contribution
+            const vec4 lightColor2_falloff_power = convertColor(m_d.m_color2, m_d.m_falloff_power);
+            vec4 lightColor_intensity = convertColor(m_d.m_color);
+            if (m_d.m_BulbLight ||
+                (!m_d.m_BulbLight && (m_surfaceTexture == (offTexel = m_ptable->GetImage(m_d.m_szOffImage))) && (offTexel != NULL) && !m_fBackglass && !m_d.m_imageMode)) // assumes/requires that the light in this kind of state is basically -exactly- the same as the static/(un)lit playfield/surface and accompanying image
+            {
+                if (m_d.m_currentIntensity == 0.f)
+                    return;
+                if (lightColor_intensity.x == 0.f && lightColor_intensity.y == 0.f && lightColor_intensity.z == 0.f &&
+                    lightColor2_falloff_power.x == 0.f && lightColor2_falloff_power.y == 0.f && lightColor2_falloff_power.z == 0.f)
+                    return;
+            }
+
+            if (!m_fBackglass)
+            {
+                pd3dDevice->SetRenderState(RenderDevice::ZWRITEENABLE, RenderDevice::RS_FALSE);
+                pd3dDevice->SetRenderStateDepthBias(-1.0f);
+            }
+            else
+            {
+                pd3dDevice->SetRenderStateDepthBias(-0.0f);
+                pd3dDevice->SetRenderState(RenderDevice::ZWRITEENABLE, RenderDevice::RS_TRUE);
+            }
+
+            if (m_fBackglass && (g_pplayer->m_ptable->m_tblMirrorEnabled ^ g_pplayer->m_ptable->m_fReflectionEnabled))
+                pd3dDevice->SetRenderState(RenderDevice::CULLMODE, D3DCULL_NONE);
+            else
+                pd3dDevice->SetRenderState(RenderDevice::CULLMODE, D3DCULL_CCW);
+
+            Vertex2D centerHUD;
+            centerHUD.x = m_d.m_vCenter.x;
+            centerHUD.y = m_d.m_vCenter.y;
+            if (m_fBackglass)
+            {
+                const float  mult = getBGxmult();
+                const float ymult = getBGymult();
+
+                centerHUD.x = centerHUD.x * mult - 0.5f;
+                centerHUD.y = centerHUD.y * ymult - 0.5f;
+            }
+            const vec4 center_range(centerHUD.x, centerHUD.y, !m_fBackglass ? m_surfaceHeight + 0.05f : 0.0f, 1.0f / max(m_d.m_falloff, 0.1f));
+
+            if (!m_d.m_BulbLight)
+            {
+                pd3dDevice->classicLightShader->SetLightData(center_range);
+                pd3dDevice->classicLightShader->SetLightColor2FalloffPower(lightColor2_falloff_power);
+
+                pd3dDevice->classicLightShader->SetLightImageBackglassMode(m_d.m_imageMode, m_fBackglass);
+                pd3dDevice->classicLightShader->SetMaterial(m_surfaceMaterial);
+
+                if (offTexel != NULL)
+                {
+                    pd3dDevice->classicLightShader->SetBool(SHADER_hdrTexture0, offTexel->IsHDR());
+                    pd3dDevice->classicLightShader->SetTechnique(SHADER_TECHNIQUE_light_with_texture);
+                    pd3dDevice->classicLightShader->SetTexture(SHADER_Texture0, offTexel, false, true);
+                    if (!m_fBackglass)
+                    {
+                        pd3dDevice->SetRenderState(RenderDevice::ALPHABLENDENABLE, RenderDevice::RS_TRUE);
+                        pd3dDevice->SetRenderState(RenderDevice::SRCBLEND, RenderDevice::ONE);
+                        pd3dDevice->SetRenderState(RenderDevice::DESTBLEND, RenderDevice::ONE);
+                    }
+                }
+                else
+                    pd3dDevice->classicLightShader->SetTechnique(SHADER_TECHNIQUE_light_without_texture);
+                pd3dDevice->classicLightShader->SetBool(SHADER_is_metal, m_surfaceMaterial->m_bIsMetal);
+            }
+            else
+            {
+                pd3dDevice->lightShader->SetLightData(center_range);
+                pd3dDevice->lightShader->SetLightColor2FalloffPower(lightColor2_falloff_power);
+
+                pd3dDevice->lightShader->SetTechnique(SHADER_TECHNIQUE_bulb_light);
+
+                Pin3D* const ppin3d = &g_pplayer->m_pin3d;
+                ppin3d->EnableAlphaBlend(false, false, false);
+                //pd3dDevice->SetRenderState(RenderDevice::SRCBLEND,  RenderDevice::SRC_ALPHA);  // add the lightcontribution
+                pd3dDevice->SetRenderState(RenderDevice::DESTBLEND, RenderDevice::INVSRC_COLOR); // but also modulate the light first with the underlying elements by (1+lightcontribution, e.g. a very crude approximation of real lighting)
+                pd3dDevice->SetRenderState(RenderDevice::BLENDOP, RenderDevice::BLENDOP_REVSUBTRACT);
+
+                if (m_d.m_showBulbMesh) // blend bulb mesh hull additive over "normal" bulb to approximate the emission directly reaching the camera
+                {
+                    lightColor_intensity.w = m_d.m_currentIntensity * 0.02f; //!! make configurable?
+                    if (g_pplayer->m_current_renderstage == 1)
+                        lightColor_intensity.w *= m_d.m_transmissionScale;
+                    pd3dDevice->lightShader->SetLightColorIntensity(lightColor_intensity);
+                    pd3dDevice->lightShader->SetFloat(SHADER_blend_modulate_vs_add, 0.00001f); // additive, but avoid full 0, as it disables the blend
+
+                    pd3dDevice->lightShader->Begin(0);
+                    pd3dDevice->DrawIndexedPrimitiveVB(RenderDevice::TRIANGLELIST, MY_D3DFVF_NOTEX2_VERTEX, bulbLightVBuffer, 0, bulbLightNumVertices, bulbLightIndexBuffer, 0, bulbLightNumFaces);
+                    pd3dDevice->lightShader->End();
+                }
+
+                pd3dDevice->lightShader->SetFloat(SHADER_blend_modulate_vs_add, (g_pplayer->m_current_renderstage == 0) ? min(max(m_d.m_modulate_vs_add, 0.00001f), 0.9999f) : 0.00001f); // avoid 0, as it disables the blend and avoid 1 as it looks not good with day->night changes // in the separate bulb light render stage only enable additive
+            }
+
+            // render light shape
+            if (m_updateLightShape)
+                UpdateLightShapeHeight();
+
+            lightColor_intensity.w = m_d.m_currentIntensity;
+            if (!m_d.m_BulbLight)
+            {
+                pd3dDevice->classicLightShader->SetLightColorIntensity(lightColor_intensity);
+                pd3dDevice->classicLightShader->Begin(0);
+            }
+            else
+            {
+                if (g_pplayer->m_current_renderstage == 1)
+                    lightColor_intensity.w *= m_d.m_transmissionScale;
+                pd3dDevice->lightShader->SetLightColorIntensity(lightColor_intensity);
+                pd3dDevice->lightShader->Begin(0);
+            }
+
+            pd3dDevice->DrawIndexedPrimitiveVB(RenderDevice::TRIANGLELIST, (!m_fBackglass) ? MY_D3DFVF_NOTEX2_VERTEX : MY_D3DTRANSFORMED_NOTEX2_VERTEX, customMoverVBuffer, 0, customMoverVertexNum, customMoverIBuffer, 0, customMoverIndexNum);
+
+            if (!m_d.m_BulbLight)
+                pd3dDevice->classicLightShader->End();
+            else
+                pd3dDevice->lightShader->End();
+
+            if (!m_d.m_BulbLight && offTexel != NULL && !m_fBackglass)
+            {
+                pd3dDevice->SetRenderState(RenderDevice::ALPHABLENDENABLE, RenderDevice::RS_FALSE);
+                pd3dDevice->SetRenderState(RenderDevice::SRCBLEND, RenderDevice::SRC_ALPHA);
+                pd3dDevice->SetRenderState(RenderDevice::DESTBLEND, RenderDevice::INVSRC_ALPHA);
+            }
+        }
+
+
+        */
+
+    // new logic
+
+    // MultiDrawSetup (once)
+
+    // UpdateWorldMatrix (every frame)
+
+    // Animate (every frame)
+
+}
+
 void Light::RenderDynamic()
 {
    RenderDevice * const pd3dDevice = m_fBackglass ? g_pplayer->m_pin3d.m_pd3dSecondaryDevice : g_pplayer->m_pin3d.m_pd3dPrimaryDevice;

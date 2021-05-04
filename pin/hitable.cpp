@@ -109,7 +109,10 @@ void Hitable::PrepareMultiDraw(std::vector<DrawElementsIndirectCommand>* m_comma
                 // unsigned int data[4] = { 0x00000000, 0x00000000, 0x00000000, 0x00000000 };
 
                 // grey tex
-            unsigned int data[4] = { 0xff888888, 0xff888888, 0xff888888, 0xff888888 };
+                //unsigned int data[4] = { 0xff888888, 0xff888888, 0xff888888, 0xff888888 };
+                
+                // white tex
+                unsigned int data[4] = { 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff };
 
 
             //GLubyte data[] = { 255,255,255,255 };
@@ -246,7 +249,7 @@ void Hitable::PrepareMultiDraw(std::vector<DrawElementsIndirectCommand>* m_comma
             convertColor(0,1.0f),
             convertColor(0xB469FF,1.0f),
             vec4(exp2f(10.0f * 0.0f + 1.0f), 0.0f, 1.0f, 0.05f),
-            vec4(0.0f,1.0f,0.0f,0.0f), // fDisableLighting_top_below - default y = 1, x not sure, z and w unused
+            vec4(0.0f,0.0f,0.0f,0.0f), // fDisableLighting_top_below - default y = 1?, x not sure, z and w unused
             0.0f,
             0.0f,
             0.0f,
@@ -283,10 +286,10 @@ void Hitable::PrepareMultiDraw(std::vector<DrawElementsIndirectCommand>* m_comma
 
             shaderMat.AZDO_fDisableLighting_top_below = mat->m_fDisableLighting_top_below;
 
-            shaderMat.AZDO_hdrEnvTextures = (g_pplayer->m_pin3d.m_envTexture ? g_pplayer->m_pin3d.m_envTexture : &g_pplayer->m_pin3d.envTexture)->IsHDR();
-            shaderMat.AZDO_objectSpaceNormalMap = mat->m_objectSpaceNormalMap; // only checked for primitives?
+            shaderMat.AZDO_hdrEnvTextures = (g_pplayer->m_pin3d.m_envTexture ? g_pplayer->m_pin3d.m_envTexture : &g_pplayer->m_pin3d.envTexture)->IsHDR() ? 1.0f : 0.0f;
+            shaderMat.AZDO_objectSpaceNormalMap = mat->m_objectSpaceNormalMap ? 1.0f : 0.0f; // only checked for primitives?
             shaderMat.AZDO_is_metal = mat->m_bIsMetal ? 1.0f : 0.0f;
-            shaderMat.AZDO_doNormalMapping = mat->m_bDoNormalMapping; // dummy info
+            shaderMat.AZDO_doNormalMapping = mat->m_bDoNormalMapping ? 1.0f : 0.0f;
             // */
             //shaderMat.padding2 = 0.0f;
             //shaderMat.padding3 = 0.0f;

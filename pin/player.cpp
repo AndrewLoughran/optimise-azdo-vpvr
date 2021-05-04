@@ -3838,7 +3838,7 @@ void Player::RenderDynamics()
    // taken from Bumper::RenderDynamic()
    //m_pin3d.m_pd3dPrimaryDevice->SetRenderStateDepthBias(0.0f);
    //m_pin3d.m_pd3dPrimaryDevice->SetRenderState(RenderDevice::ZWRITEENABLE, RenderDevice::RS_TRUE);
-   //m_pin3d.m_pd3dPrimaryDevice->SetRenderStateCulling(RenderDevice::CULL_CCW);
+   //m_pin3d.m_pd3dPrimaryDevice->SetRenderStateCulling(RenderDevice::CULL_NONE);
    
 
   
@@ -3933,7 +3933,7 @@ void Player::RenderDynamics()
        glBindTextureUnit(1, m_pin3d.m_pd3dPrimaryDevice->m_texMan.LoadTexture(m_pin3d.m_envTexture->m_pdsBuffer, false, false)->texture); // m_pin3d.m_envTexture ? m_pin3d.m_pd3dPrimaryDevice->m_texMan.LoadTexture(m_pin3d.m_envTexture->m_pdsBuffer, false, false) : &m_pin3d.envTexture)
    }
    else {
-       glBindTextureUnit(1, 0);
+       glBindTextureUnit(1, m_pin3d.m_pd3dPrimaryDevice->m_texMan.LoadTexture(m_pin3d.envTexture.m_pdsBuffer, false, false)->texture);
    }
    //glUniform1i(glGetUniformLocation(m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->m_currentTechnique->program, "Texture1"), 0);
    glBindTextureUnit(2, m_pin3d.m_pd3dPrimaryDevice->m_texMan.LoadTexture(m_pin3d.m_envRadianceTexture, false, false)->texture);
@@ -3987,6 +3987,8 @@ void Player::RenderDynamics()
    glUniform1i(9, lightSources);     // layout (location = 7) uniform int lightSources;
    glUniform4fv(10, 1, amb); // layout (location = 8) uniform vec4 cAmbient_LightRange;
    glUniform2fv(11, 1, env); // layout (location = 9) uniform vec2 fenvEmissionScale_TexWidth;
+
+   m_pin3d.m_pd3dPrimaryDevice->SetRenderStateCulling(RenderDevice::CULL_NONE);
 
    // MATERIALS PERSISTENT MAPPED BUFFER
    /*
@@ -4047,11 +4049,13 @@ void Player::RenderDynamics()
    //glNamedBufferSubData(matrices_buffer, 0, sizeof(Hitable::ObjMatrices) * MAX_DRAWS, _allMatrices.data());
    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, material_buffer);
 
+
+   // m_pin3d.m_pd3dPrimaryDevice->basicShader->SetTexture(SHADER_Texture1, m_pin3d.m_envTexture ? m_pin3d.m_envTexture : &m_pin3d.envTexture, false);
    if (m_pin3d.m_envTexture) {
        glBindTextureUnit(1, m_pin3d.m_pd3dPrimaryDevice->m_texMan.LoadTexture(m_pin3d.m_envTexture->m_pdsBuffer, false, false)->texture); // m_pin3d.m_envTexture ? m_pin3d.m_pd3dPrimaryDevice->m_texMan.LoadTexture(m_pin3d.m_envTexture->m_pdsBuffer, false, false) : &m_pin3d.envTexture)
    }
-   else {
-       glBindTextureUnit(1, 0);
+   else { // default env map
+       glBindTextureUnit(1, m_pin3d.m_pd3dPrimaryDevice->m_texMan.LoadTexture(m_pin3d.envTexture.m_pdsBuffer, false, false)->texture);
    }
    //glUniform1i(glGetUniformLocation(m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->m_currentTechnique->program, "Texture1"), 0);
    glBindTextureUnit(2, m_pin3d.m_pd3dPrimaryDevice->m_texMan.LoadTexture(m_pin3d.m_envRadianceTexture, false, false)->texture);
@@ -4060,10 +4064,12 @@ void Player::RenderDynamics()
 
    // MaterialMultiDraw.fxh
    glUniform4fv(5, 2, *lightPos); // layout (location = 5) uniform vec4 lightPos[iLightPointNum];
-   glUniform4fv(7, 1, *lightEmission); // layout(location = 6) uniform vec4 lightEmission[iLightPointNum];
-   glUniform1i(9, lightSources);     // layout (location = 7) uniform int lightSources;
-   glUniform4fv(10, 1, amb); // layout (location = 8) uniform vec4 cAmbient_LightRange;
-   glUniform2fv(11, 1, env); // layout (location = 9) uniform vec2 fenvEmissionScale_TexWidth;
+   glUniform4fv(7, 1, *lightEmission); // layout(location = 7) uniform vec4 lightEmission[iLightPointNum];
+   glUniform1i(9, lightSources);     // layout (location = 8) uniform int lightSources;
+   glUniform4fv(10, 1, amb); // layout (location = 10) uniform vec4 cAmbient_LightRange;
+   glUniform2fv(11, 1, env); // layout (location = 11) uniform vec2 fenvEmissionScale_TexWidth;
+
+   m_pin3d.m_pd3dPrimaryDevice->SetRenderStateCulling(RenderDevice::CULL_NONE);
 
    // transparent objects
    glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT,(void*) (NON_TRANS_COUNT * sizeof(Hitable::DrawElementsIndirectCommand)), TRANS_COUNT, 0);
