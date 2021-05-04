@@ -4018,7 +4018,7 @@ void Player::RenderDynamics()
    DrawBalls();
 
 
-
+   DrawBulbLightBuffer(); // sets shader uniform 'Texture3'
 
 
 
@@ -4129,7 +4129,7 @@ void Player::RenderDynamics()
 #endif
 #endif
 
-      DrawBulbLightBuffer(); // sets shader uniform 'Texture3'
+     // DrawBulbLightBuffer(); // sets shader uniform 'Texture3'
       /*
       m_dmdstate = 0;
       // Draw transparent objects. No DMD's
@@ -4229,9 +4229,9 @@ void Player::RenderDynamics()
 #endif
    m_dmdstate = 0;
 
-   //
+   
 
-   m_pin3d.m_pd3dPrimaryDevice->basicShader->SetTextureNull(SHADER_Texture3); // need to reset the bulb light texture, as its used as render target for bloom again
+   //m_pin3d.m_pd3dPrimaryDevice->basicShader->SetTextureNull(SHADER_Texture3); // need to reset the bulb light texture, as its used as render target for bloom again
 
    m_pin3d.m_pd3dPrimaryDevice->SetRenderStateDepthBias(0.0f); //!! paranoia set of old state, remove as soon as sure that no other code still relies on that legacy set
    m_pin3d.m_pd3dPrimaryDevice->SetRenderState(RenderDevice::ZWRITEENABLE, RenderDevice::RS_TRUE);
@@ -5205,8 +5205,10 @@ void Player::Render()
 
    m_pin3d.m_pd3dPrimaryDevice->BeginScene();
    m_pin3d.UpdateMatrices();
-   RenderDynamics();
 
+   //FrameMarkStart("first to last draw call");
+   RenderDynamics();
+   //FrameMarkEnd("first to last draw call")
    m_pin3d.m_pd3dPrimaryDevice->EndScene();
 
    m_pininput.ProcessKeys(/*sim_msec,*/ -(int)(timeforframe / 1000)); // trigger key events mainly for VPM<->VP rountrip
