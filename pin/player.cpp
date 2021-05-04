@@ -3650,7 +3650,7 @@ void Player::DrawBulbLightBuffer()
    m_pin3d.m_pd3dPrimaryDevice->SetRenderTarget(m_pin3d.m_pd3dPrimaryDevice->GetBackBufferTexture(), false);
 
    m_pin3d.m_pd3dPrimaryDevice->basicShader->SetTexture(SHADER_Texture3, m_pin3d.m_pd3dPrimaryDevice->GetBloomBufferTexture(), false);
-   //m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->SetTexture(SHADER_Texture3, m_pin3d.m_pd3dPrimaryDevice->GetBloomBufferTexture(), false);
+   m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->SetTexture(SHADER_Texture3, m_pin3d.m_pd3dPrimaryDevice->GetBloomBufferTexture(), false);
 }
 
 void Player::RenderDynamics()
@@ -4022,19 +4022,29 @@ void Player::RenderDynamics()
 
 
 
+   // sort transparent objects
+   //std::map<
+
+
+
+
+
+
+
+
+
    m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->SetTechnique(SHADER_TECHNIQUE_basic_with_texture);
    //g_pplayer->m_pin3d.EnableAlphaBlend(false);
    m_pin3d.m_pd3dPrimaryDevice->basicShaderMultiDraw->BeginMulti();
 
+   glEnable(GL_BLEND);
+   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+   glBlendEquation(GL_FUNC_ADD);
+
    glBindVertexArray(multiVAO);
-
    glBindBuffer(GL_DRAW_INDIRECT_BUFFER, indirect_draw_buffer);
-
-   //const GLuint ssboBuffers[2] = { matrices_buffer, material_buffer };
-   //glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, 2, 2, ssboBuffers);
    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, matrices_buffer);
-   glNamedBufferSubData(matrices_buffer, 0, sizeof(Hitable::ObjMatrices) * MAX_DRAWS, _allMatrices.data());
-
+   //glNamedBufferSubData(matrices_buffer, 0, sizeof(Hitable::ObjMatrices) * MAX_DRAWS, _allMatrices.data());
    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, material_buffer);
 
    if (m_pin3d.m_envTexture) {
@@ -4129,7 +4139,7 @@ void Player::RenderDynamics()
 #endif
 #endif
 
-     // DrawBulbLightBuffer(); // sets shader uniform 'Texture3'
+      //DrawBulbLightBuffer(); // sets shader uniform 'Texture3'
       /*
       m_dmdstate = 0;
       // Draw transparent objects. No DMD's

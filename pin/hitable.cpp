@@ -246,7 +246,7 @@ void Hitable::PrepareMultiDraw(std::vector<DrawElementsIndirectCommand>* m_comma
             convertColor(0,1.0f),
             convertColor(0xB469FF,1.0f),
             vec4(exp2f(10.0f * 0.0f + 1.0f), 0.0f, 1.0f, 0.05f),
-            vec4(0.0f,1.0f,0.0f,0.0f),
+            vec4(0.0f,1.0f,0.0f,0.0f), // fDisableLighting_top_below - default y = 1, x not sure, z and w unused
             0.0f,
             0.0f,
             0.0f,
