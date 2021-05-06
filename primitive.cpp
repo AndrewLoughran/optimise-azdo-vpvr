@@ -1344,14 +1344,21 @@ void Primitive::MultiDrawSetup(std::vector<DrawElementsIndirectCommand>* m_comma
     std::vector<ObjMatrices>* _allMatrices,
     std::vector<Matrix3D>* _allWorldMatrices) {
 
-    if (m_d.m_fGroupdRendering || m_d.m_fSkipRendering)
-        return;
+    //if (m_d.m_fGroupdRendering || m_d.m_fSkipRendering)
+    //    return;
 
     if (strcmp("playfield_mesh", g_pplayer->m_ptable->GetElementName((IEditable*)this)) == 0) {
         RenderSetup();
         return;
     }
 
+
+    /*
+    if (!m_d.m_fVisible) { // for invisible colliders?
+        RenderSetup();
+        return;
+    }
+    */
 
     m_currentFrame = -1.f;
 
@@ -1560,15 +1567,20 @@ void Primitive::MultiDrawSetup(std::vector<DrawElementsIndirectCommand>* m_comma
    
 
     //RenderObject(); // dummy link
-    PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, vertexBuffer, indexBuffer, mat, mainTex, &fullMatrix, nMap);
+    PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, vertexBuffer, indexBuffer, mat, mainTex, &fullMatrix, m_d.m_fVisible, nMap);
 }
 
 void Primitive::UpdateWorldMatrix(std::vector<Matrix3D>* _allWorldMatrices) {
 
-    if (strcmp("playfield_mesh", g_pplayer->m_ptable->GetElementName((IEditable*)this)) == 0) {
-        
+    if (strcmp("playfield_mesh", g_pplayer->m_ptable->GetElementName((IEditable*)this)) == 0) {       
         return;
     }
+
+    /*
+    if (!m_d.m_fVisible) {
+        return;
+    }
+    */
 
     // multidraw: add actual animation logic here from RenderObject()
     // end with call to SetWorldMatrix();

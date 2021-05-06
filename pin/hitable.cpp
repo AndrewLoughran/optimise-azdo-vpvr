@@ -22,6 +22,7 @@ void Hitable::PrepareMultiDraw(std::vector<DrawElementsIndirectCommand>* m_comma
     const Material* const  mat,
     Texture* tex,
     Matrix3D* const objWorldMatrix,
+    bool isObjectVisible,
     Texture* normalMap,
     int vertexCount, // these are used for specifying partial data from a buffer (only for Surface objects)
     int vertexOffset,
@@ -46,7 +47,7 @@ void Hitable::PrepareMultiDraw(std::vector<DrawElementsIndirectCommand>* m_comma
     //assert(indexCount != 0);
 
     cmd.count = indexCount;  // specifies the number of elements to be rendered
-    cmd.instanceCount = 1;         // 0 if hidden, 1 if visible? this is where we want to use stereo instancing later
+    cmd.instanceCount = isObjectVisible ? 1 : 0;         // 0 if hidden, 1 if visible? this is where we want to use stereo instancing later
 
     // is startIndex always 0? yes EXCEPT FOR SURFACE
     // startVertex is sometimes non-zero.
@@ -286,7 +287,7 @@ void Hitable::PrepareMultiDraw(std::vector<DrawElementsIndirectCommand>* m_comma
 
             shaderMat.AZDO_fDisableLighting_top_below = mat->m_fDisableLighting_top_below;
 
-            shaderMat.AZDO_hdrEnvTextures = (g_pplayer->m_pin3d.m_envTexture ? g_pplayer->m_pin3d.m_envTexture : &g_pplayer->m_pin3d.envTexture)->IsHDR() ? 1.0f : 0.0f;
+            shaderMat.AZDO_hdrEnvTextures = ((g_pplayer->m_pin3d.m_envTexture ? g_pplayer->m_pin3d.m_envTexture : &g_pplayer->m_pin3d.envTexture)->IsHDR()) ? 1.0f : 0.0f;
             shaderMat.AZDO_objectSpaceNormalMap = mat->m_objectSpaceNormalMap ? 1.0f : 0.0f; // only checked for primitives?
             shaderMat.AZDO_is_metal = mat->m_bIsMetal ? 1.0f : 0.0f;
             shaderMat.AZDO_doNormalMapping = mat->m_bDoNormalMapping ? 1.0f : 0.0f;

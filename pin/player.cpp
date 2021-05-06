@@ -1695,7 +1695,7 @@ HRESULT Player::Init(PinTable * const ptable, const HWND hwndProgress, const HWN
       //std::stable_sort(m_vHitTrans.begin(), m_vHitTrans.end(), CompareHitableImage); // see above
                                                                                      // sort by vertexbuffer not useful currently
       //std::stable_sort(m_vHitTrans.begin(), m_vHitTrans.end(), CompareHitableMaterial);
-      std::stable_sort(m_vHitTrans.begin(), m_vHitTrans.end(), CompareHitableDepth);
+      //std::stable_sort(m_vHitTrans.begin(), m_vHitTrans.end(), CompareHitableDepth);
 
 
    }
@@ -1728,6 +1728,8 @@ HRESULT Player::Init(PinTable * const ptable, const HWND hwndProgress, const HWN
    _allWorldMatrices.reserve(MAX_DRAWS);
    draw_index.reserve(MAX_DRAWS);
  
+   
+
   // /*
    // populate every objects verts/indices/materials/matrices and all draw commands  
    for (size_t i = 0; i < m_vHitNonTrans.size(); ++i)

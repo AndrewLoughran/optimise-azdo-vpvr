@@ -971,7 +971,7 @@ void Bumper::MultiDrawSetup(std::vector<Hitable::DrawElementsIndirectCommand>* m
         //m_baseVertexBuffer->unlock();
 
         // DRAW INFO GATHERING
-        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, m_baseVertexBuffer, m_baseIndexBuffer, m_ptable->GetMaterial(m_d.m_szBaseMaterial), &m_baseTexture, &m_worldMatrix_Base);
+        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, m_baseVertexBuffer, m_baseIndexBuffer, m_ptable->GetMaterial(m_d.m_szBaseMaterial), &m_baseTexture, &m_worldMatrix_Base, true);
     }
 
     if (m_d.m_fSkirtVisible)
@@ -995,7 +995,7 @@ void Bumper::MultiDrawSetup(std::vector<Hitable::DrawElementsIndirectCommand>* m
         
 
         // DRAW INFO GATHERING
-        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, m_socketVertexBuffer, m_socketIndexBuffer, m_ptable->GetMaterial(m_d.m_szSkirtMaterial), &m_skirtTexture, &m_worldMatrix_Skirt);
+        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, m_socketVertexBuffer, m_socketIndexBuffer, m_ptable->GetMaterial(m_d.m_szSkirtMaterial), &m_skirtTexture, &m_worldMatrix_Skirt, true);
 
     }
 
@@ -1036,7 +1036,7 @@ void Bumper::MultiDrawSetup(std::vector<Hitable::DrawElementsIndirectCommand>* m
 
 
         // DRAW INFO GATHERING
-        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, m_ringVertexBuffer, m_ringIndexBuffer, m_ptable->GetMaterial(m_d.m_szRingMaterial), &m_ringTexture, &m_worldMatrix_Ring);
+        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, m_ringVertexBuffer, m_ringIndexBuffer, m_ptable->GetMaterial(m_d.m_szRingMaterial), &m_ringTexture, &m_worldMatrix_Ring, true);
 
     }
 
@@ -1060,7 +1060,7 @@ void Bumper::MultiDrawSetup(std::vector<Hitable::DrawElementsIndirectCommand>* m
 
 
         // DRAW INFO GATHERING
-        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, m_capVertexBuffer, m_capIndexBuffer, m_ptable->GetMaterial(m_d.m_szCapMaterial), &m_capTexture, &m_worldMatrix_Cap);
+        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, m_capVertexBuffer, m_capIndexBuffer, m_ptable->GetMaterial(m_d.m_szCapMaterial), &m_capTexture, &m_worldMatrix_Cap, true);
 
     }
 

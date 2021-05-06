@@ -172,6 +172,8 @@ private:
    bool m_isWall;
    bool m_isDynamic;
    bool m_fIsDropped;
+   bool drawSide = false;
+   bool drawTopBottom = false;
 
 private:
    PinTable *m_ptable;

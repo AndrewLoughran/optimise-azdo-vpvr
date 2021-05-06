@@ -141,9 +141,10 @@ public:
        std::vector<Matrix3D>* _allWorldMatrices,
        const VertexBuffer* const  objVertexBuffer,
        const IndexBuffer* const  objIndexBuffer,
-       const Material* const  mat,
+       const Material* const mat,
        Texture* tex,
        Matrix3D* const objWorldMatrix,
+       bool isObjectVisible,
        Texture* normalMap = nullptr, // only potentially used in Primitive objects
        int vertexCount = 0, // these are used for specifying partial data from a buffer (only for Surface objects)
        int vertexOffset = 0,

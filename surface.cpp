@@ -642,7 +642,7 @@ void Surface::MultiDrawSetup(std::vector<Hitable::DrawElementsIndirectCommand>* 
         for (size_t i = 0; i < m_vlinesling.size(); i++)
         {
 
-            PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, slingshotVBuffer, slingIBuffer, mat, nullptr, &slingshotWorldMatrix, nullptr, 9, VBufferOffset, 24, 0);
+            PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, slingshotVBuffer, slingIBuffer, mat, nullptr, &slingshotWorldMatrix, m_d.m_fSideVisible, nullptr, 9, VBufferOffset, 24, 0);
             VBufferOffset += 9;
 
         }
@@ -677,9 +677,6 @@ void Surface::MultiDrawSetup(std::vector<Hitable::DrawElementsIndirectCommand>* 
     // quick cast instead of modifying GenerateMesh
     std::vector<unsigned int> topBottomIndices(topBottomIndicesWORD.begin(), topBottomIndicesWORD.end());
     std::vector<unsigned int> sideIndices(sideIndicesWORD.begin(), sideIndicesWORD.end());
-    //std::copy(topBottomIndicesWORD.begin(), topBottomIndicesWORD.end(), topBottomIndices.begin());
-    //std::copy()
-    //std::copy(sideIndicesWORD.begin(), sideIndicesWORD.end(), sideIndices.begin());
 
     VertexBuffer::CreateVertexBuffer(numVertices * 4 + ((topBottomBuf.size() > 0) ? numVertices * 3 : 0), 0, MY_D3DFVF_NOTEX2_VERTEX, &VBuffer);
 
@@ -714,23 +711,27 @@ void Surface::MultiDrawSetup(std::vector<Hitable::DrawElementsIndirectCommand>* 
 
 
     // SIDE
-    if (m_d.m_fSideVisible && (numVertices > 0)) {
+    //if (m_d.m_fSideVisible && (numVertices > 0)) {
+    if (sideBuf.size() > 0) {
         Material* mat = m_ptable->GetMaterial(m_d.m_szSideMaterial);
         if (m_d.m_fDisableLightingTop != 0.f || m_d.m_fDisableLightingBelow != 0.f){
             mat->m_fDisableLighting_top_below = vec4(m_d.m_fDisableLightingTop, m_d.m_fDisableLightingBelow, 0.f, 0.f);
         }
-        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, VBuffer, IBuffer, mat, m_ptable->GetImage(m_d.m_szSideImage), &surfaceWorldMatrix, nullptr, numVertices*4, 0, numVertices*6, 0);
+        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, VBuffer, IBuffer, mat, m_ptable->GetImage(m_d.m_szSideImage), &surfaceWorldMatrix, m_d.m_fSideVisible, nullptr, numVertices*4, 0, numVertices*6, 0);
+        drawSide = true;
     }
 
     // TOP/BOTTOM
-    if (m_d.m_fTopBottomVisible && (numPolys > 0))
+    //if (m_d.m_fTopBottomVisible && (numPolys > 0))
+    if (topBottomBuf.size() > 0)
     {
         //PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, VBuffer, IBuffer, m_ptable->GetMaterial(m_d.m_szTopMaterial), m_ptable->GetImage(m_d.m_szImage), &surfaceWorldMatrix, numVertices * 4 + (!fDrop ? 0 : numVertices), numVertices * 6);
         Material* mat = m_ptable->GetMaterial(m_d.m_szTopMaterial);
         if (m_d.m_fDisableLightingTop != 0.f || m_d.m_fDisableLightingBelow != 0.f) {
             mat->m_fDisableLighting_top_below = vec4(m_d.m_fDisableLightingTop, m_d.m_fDisableLightingBelow, 0.f, 0.f);
         }
-        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, VBuffer, IBuffer, mat, m_ptable->GetImage(m_d.m_szImage), &surfaceWorldMatrix, nullptr, numVertices, numVertices*4 + (!m_fIsDropped ? 0 : numVertices), numPolys*3, numVertices*6);
+        PrepareMultiDraw(m_commands, _allVertices, _allIndices, _allMaterials, _allMatrices, _allWorldMatrices, VBuffer, IBuffer, mat, m_ptable->GetImage(m_d.m_szImage), &surfaceWorldMatrix, m_d.m_fTopBottomVisible, nullptr, numVertices, numVertices*4 + (!m_fIsDropped ? 0 : numVertices), numPolys*3, numVertices*6);
+        drawTopBottom = true;
     }
 
     m_d.m_heightbottom = oldBottomHeight;
@@ -790,16 +791,17 @@ void Surface::UpdateWorldMatrix(std::vector<Matrix3D>* _allWorldMatrices) {
         return;
 */
                     // render side
-            if (m_d.m_fSideVisible) // Don't need to render walls if dropped
-            {
-                _allWorldMatrices->push_back(surfaceWorldMatrix);
-            }
+            //if (m_d.m_fSideVisible && (numVertices > 0)) // Don't need to render walls if dropped
+                if(drawSide) 
+                {
+                    _allWorldMatrices->push_back(surfaceWorldMatrix);
+                }
 
             // render top&bottom
-            if (m_d.m_fTopBottomVisible)
-            {
-                _allWorldMatrices->push_back(surfaceWorldMatrix);
-            }
+                if (drawTopBottom)
+                {
+                    _allWorldMatrices->push_back(surfaceWorldMatrix);
+                }
 /*
     // 'STATIC' SURFACES
     if (!m_d.m_fDroppable && !m_isDynamic)
