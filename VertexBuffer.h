@@ -21,7 +21,7 @@ public:
    static void bindNull() { m_curVertexBuffer = nullptr; }
 
    static void CreateVertexBuffer(const unsigned int vertexCount, const DWORD usage, const DWORD fvf, VertexBuffer **vBuffer);
-
+   static VertexBuffer* m_curVertexBuffer; // for caching
    GLuint getOffset() const { return offset; }
    GLuint getCount() const { return count; }
    void* getBuffer() const { return dataBuffer; }
@@ -46,7 +46,7 @@ private:
    GLuint Array;
    GLuint offset;//unused ATM, but if we want to group multiple IndexBuffers later in one buffer we might need it
 
-   static VertexBuffer* m_curVertexBuffer; // for caching
+   //static VertexBuffer* m_curVertexBuffer; // for caching
    static eastl::vector<VertexBuffer*> notUploadedBuffers;
    void UploadData();
    void addToNotUploadedBuffers();

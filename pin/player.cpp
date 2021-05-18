@@ -700,7 +700,7 @@ Player::~Player()
    g_pplayer->m_pBCTarget = NULL;
 
    // delete my stuff here? resources should be released before the opengl context shuts down
-   glUnmapNamedBuffer(material_buffer);
+   //glUnmapNamedBuffer(material_buffer);
    glDeleteVertexArrays(1, &multiVAO);
    glDeleteBuffers(1, &matrices_buffer);
    glDeleteBuffers(1, &indirect_draw_buffer);
@@ -3842,11 +3842,15 @@ void Player::RenderDynamics()
    //m_pin3d.m_pd3dPrimaryDevice->SetRenderState(RenderDevice::ZWRITEENABLE, RenderDevice::RS_TRUE);
    //m_pin3d.m_pd3dPrimaryDevice->SetRenderStateCulling(RenderDevice::CULL_NONE);
    
+   m_pin3d.m_pd3dPrimaryDevice->SetRenderStateDepthBias(0.0f);
+   m_pin3d.m_pd3dPrimaryDevice->SetRenderStateCulling(RenderDevice::CULL_NONE);
+   m_pin3d.m_pd3dPrimaryDevice->SetRenderState(RenderDevice::ZWRITEENABLE, RenderDevice::RS_TRUE);
 
+      // g_pplayer->m_pin3d.EnableAlphaBlend(m_d.m_fAddBlend);
   
 
  
-   //glDisable(GL_BLEND);
+   glEnable(GL_BLEND);
    //glDepthMask(GL_TRUE);
    //glEnable(GL_DEPTH_TEST);
    //glDisable(GL_CULL_FACE);
@@ -3930,6 +3934,9 @@ void Player::RenderDynamics()
    glNamedBufferSubData(matrices_buffer, 0, sizeof(Hitable::ObjMatrices)* MAX_DRAWS, _allMatrices.data());
 
    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, material_buffer);
+
+   glBindTextureUnit(0, debugTex);
+    //glUniform1i(0, 0);
 
    if (m_pin3d.m_envTexture) {
        glBindTextureUnit(1, m_pin3d.m_pd3dPrimaryDevice->m_texMan.LoadTexture(m_pin3d.m_envTexture->m_pdsBuffer, false, false)->texture); // m_pin3d.m_envTexture ? m_pin3d.m_pd3dPrimaryDevice->m_texMan.LoadTexture(m_pin3d.m_envTexture->m_pdsBuffer, false, false) : &m_pin3d.envTexture)
@@ -4018,21 +4025,98 @@ void Player::RenderDynamics()
    // non-transparent objects
    //glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, 0, ACTUAL_DRAWS, 0);
    glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, 0, NON_TRANS_COUNT, 0);
+   glBindVertexArray(0);
+   // new old render toggle, RenderStatic() probably in wrong place
+   static bool drawOldRenderCodeObjects = true;
+
+   if (drawOldRenderCodeObjects) {
+       for (size_t i = 0; i < m_ptable->m_vedit.size(); i++)
+       {
+           if (m_ptable->m_vedit[i]->GetItemType() != eItemDecal)
+           {
+               Hitable* const ph = m_ptable->m_vedit[i]->GetIHitable();
+               if (ph && (ph->HitableGetItemType() != eItemBumper && ph->HitableGetItemType() != eItemPrimitive && ph->HitableGetItemType() != eItemSurface))
+               {
+                   //ph->RenderStatic();
+               }
+           }
+       }
+
+
+       // Draw decals (they have transparency, so they have to be drawn after the wall they are on)
+       for (size_t i = 0; i < m_ptable->m_vedit.size(); i++)
+       {
+           if (m_ptable->m_vedit[i]->GetItemType() == eItemDecal)
+           {
+               Hitable* const ph = m_ptable->m_vedit[i]->GetIHitable();
+               if (ph)
+               {
+                   //ph->RenderStatic();
+               }
+           }
+       }
+
+
+       m_dmdstate = 0;
+       // Draw non-transparent objects. No DMD's
+       for (size_t i = 0; i < m_vHitNonTrans.size(); ++i) {
+           if (!m_vHitNonTrans[i]->IsDMD()) {
+               //TracyGpuZone("NonTrans->RenderDynamic");
+               if (m_vHitNonTrans[i]->HitableGetItemType() != eItemBumper && m_vHitNonTrans[i]->HitableGetItemType() != eItemPrimitive && m_vHitNonTrans[i]->HitableGetItemType() != eItemSurface) {
+                   //m_vHitNonTrans[i]->RenderDynamic();
+               }
+           }
+       }
+       m_dmdstate = 2;
+       // Draw non-transparent DMD's
+       for (size_t i = 0; i < m_vHitNonTrans.size(); ++i) {
+           if (m_vHitNonTrans.at(i)->IsDMD()) {
+               if (m_vHitNonTrans[i]->HitableGetItemType() != eItemBumper && m_vHitNonTrans[i]->HitableGetItemType() != eItemPrimitive && m_vHitNonTrans[i]->HitableGetItemType() != eItemSurface) {
+                   m_vHitNonTrans.at(i)->RenderDynamic();
+               }
+           }
+       }
+   }
+
 
    DrawBalls();
 
-
    DrawBulbLightBuffer(); // sets shader uniform 'Texture3'
 
-
+   if (drawOldRenderCodeObjects) {
+       m_dmdstate = 0;
+       // Draw transparent objects. No DMD's
+       for (size_t i = 0; i < m_vHitTrans.size(); ++i) {
+           if (!m_vHitTrans[i]->IsDMD()) {
+               if (m_vHitTrans[i]->HitableGetItemType() != eItemBumper && m_vHitTrans[i]->HitableGetItemType() != eItemPrimitive && m_vHitTrans[i]->HitableGetItemType() != eItemSurface) {
+                   //m_vHitTrans[i]->RenderDynamic();
+               }
+           }
+       }
+       m_dmdstate = 1;
+       // Draw only transparent DMD's
+       for (size_t i = 0; i < m_vHitNonTrans.size(); ++i) {//!! is NonTrans correct or rather Trans????
+           if (m_vHitNonTrans.at(i)->IsDMD()) {
+               if (m_vHitNonTrans[i]->HitableGetItemType() != eItemBumper && m_vHitNonTrans[i]->HitableGetItemType() != eItemPrimitive && m_vHitNonTrans[i]->HitableGetItemType() != eItemSurface) {
+                  m_vHitNonTrans.at(i)->RenderDynamic();
+               }
+           }
+       }
+   }
 
    // sort transparent objects
    //std::map<
 
+ 
+   // sanity change as PostProcess() (incorrectly?) expects some shader to have been set in the old system in RenderDynamics() before hitting it
+   Shader::lastShaderProgram = 96;
+   Shader::nextTextureSlot = 0;
 
-
-
-
+   // without doing this then PostProcess() will throw an error about no VAO being bound for a call to DrawArrays(). This error was masked by not unbinding our own VAOs after each MultiDrawElementsIndirect call. This led to a tricky black screen unless ONE call from the old render code was made.
+   VertexBuffer::m_curVertexBuffer = nullptr;
+   
+   glEnable(GL_DEPTH_TEST);
+   glDepthMask(GL_TRUE);
 
 
 
@@ -4051,6 +4135,7 @@ void Player::RenderDynamics()
    //glNamedBufferSubData(matrices_buffer, 0, sizeof(Hitable::ObjMatrices) * MAX_DRAWS, _allMatrices.data());
    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, material_buffer);
 
+   glBindTextureUnit(0, debugTex);
 
    // m_pin3d.m_pd3dPrimaryDevice->basicShader->SetTexture(SHADER_Texture1, m_pin3d.m_envTexture ? m_pin3d.m_envTexture : &m_pin3d.envTexture, false);
    if (m_pin3d.m_envTexture) {
@@ -4075,7 +4160,7 @@ void Player::RenderDynamics()
 
    // transparent objects
    glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT,(void*) (NON_TRANS_COUNT * sizeof(Hitable::DrawElementsIndirectCommand)), TRANS_COUNT, 0);
-
+   glBindVertexArray(0);
 
    /*
    int x = m_ptable->m_vedit.size();
@@ -4124,13 +4209,13 @@ void Player::RenderDynamics()
               TracyGpuZone("NonTrans->RenderDynamic");
               m_vHitNonTrans[i]->RenderDynamic();
           }
-          */
+       
       m_dmdstate = 2;
       // Draw non-transparent DMD's
       for (size_t i = 0; i < m_vHitNonTrans.size(); ++i)
          if (m_vHitNonTrans.at(i)->IsDMD())
             m_vHitNonTrans.at(i)->RenderDynamic();
-      
+      */
       //DrawBalls();
       
 
@@ -4154,13 +4239,14 @@ void Player::RenderDynamics()
       for (size_t i = 0; i < m_vHitTrans.size(); ++i)
          if (!m_vHitTrans[i]->IsDMD())
             m_vHitTrans[i]->RenderDynamic();
-        */
+        
       m_dmdstate = 1;
       // Draw only transparent DMD's
       for (size_t i = 0; i < m_vHitNonTrans.size(); ++i) //!! is NonTrans correct or rather Trans????
          if (m_vHitNonTrans.at(i)->IsDMD())
             m_vHitNonTrans.at(i)->RenderDynamic();
-      
+      */
+
 
 #ifndef ENABLE_SDL
 #ifdef FPS
@@ -4247,14 +4333,14 @@ void Player::RenderDynamics()
 #endif
    m_dmdstate = 0;
 
-   
+  
 
    //m_pin3d.m_pd3dPrimaryDevice->basicShader->SetTextureNull(SHADER_Texture3); // need to reset the bulb light texture, as its used as render target for bloom again
 
-   m_pin3d.m_pd3dPrimaryDevice->SetRenderStateDepthBias(0.0f); //!! paranoia set of old state, remove as soon as sure that no other code still relies on that legacy set
-   m_pin3d.m_pd3dPrimaryDevice->SetRenderState(RenderDevice::ZWRITEENABLE, RenderDevice::RS_TRUE);
-   m_pin3d.m_pd3dPrimaryDevice->SetRenderState(RenderDevice::BLENDOP, RenderDevice::BLENDOP_ADD);
-   m_pin3d.m_pd3dPrimaryDevice->SetRenderStateCulling(RenderDevice::CULL_CCW);
+  // m_pin3d.m_pd3dPrimaryDevice->SetRenderStateDepthBias(0.0f); //!! paranoia set of old state, remove as soon as sure that no other code still relies on that legacy set
+  // m_pin3d.m_pd3dPrimaryDevice->SetRenderState(RenderDevice::ZWRITEENABLE, RenderDevice::RS_TRUE);
+  // m_pin3d.m_pd3dPrimaryDevice->SetRenderState(RenderDevice::BLENDOP, RenderDevice::BLENDOP_ADD);
+  // m_pin3d.m_pd3dPrimaryDevice->SetRenderStateCulling(RenderDevice::CULL_CCW);
 
    if (!cameraMode)
    {

@@ -5,7 +5,7 @@
 //#include "math/vector.h"
 #include "color.h"
 #include "Shader.h"
-//#include "extern.h"
+#include "Material.h"
 GLuint Hitable::drawID = 0;
 GLuint Hitable::bufferBaseVertex = 0;
 GLuint Hitable::bufferBaseIndex = 0;
@@ -260,8 +260,8 @@ void Hitable::PrepareMultiDraw(std::vector<DrawElementsIndirectCommand>* m_comma
 
         if (mat) {
 
-            //shaderMat.texHandle = glGetTextureHandleARB(texName);
-            //shaderMat.paddingHandle = 0;
+            shaderMat.texHandle = glGetTextureHandleARB(texName);
+            shaderMat.paddingHandle = 0;
 
             shaderMat.AZDO_alphaTestValue = (1.0 / 255.0); // correct for bumpers for now
             shaderMat.padding1 = 0.0f;

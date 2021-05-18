@@ -78,9 +78,12 @@ layout(depth_unchanged) out float gl_FragDepth;
 struct MatProperties
 {
     sampler2D texHandle;    
-    //uvec2 texHandle;
     sampler2D normalMapHandle;    
     sampler2D paddingHandle;    
+
+    //uvec2 texHandle;
+    //uvec2 normalMapHandle;
+    //uvec2 paddingHandle;    
 
     float AZDO_alphaTestValue;
     float padding1;
@@ -98,8 +101,16 @@ struct MatProperties
     float AZDO_is_metal;
     float AZDO_doNormalMapping;
 
+    // lighting - only used in classicLightShader, could be moved to separate SSBO for less wasted memory but this is simpler for now
+    //vec4 lightColor_intensity;
+    //vec4 lightColor2_falloff_power;
+    //vec4 lightCenter_maxRange;
+    //vec4 imageBackglassMode_hdrTexture0_isLight; //4 bools - replaces below?
 
+    //vec2 imageBackglassMode; // actually bool2
 
+    //float hdrTexture0; // bool as float for packing reasons
+    //float finalPadding;
 
 };
 
@@ -136,14 +147,14 @@ uniform bool OLD_doNormalMapping;
 #include "Helpers.fxh"
 #include "MaterialMultiDraw.fxh"
 
-uniform vec4 cClearcoat_EdgeAlpha;
-uniform vec4 cGlossy_ImageLerp;
+uniform vec4 OLD_cClearcoat_EdgeAlpha;
+uniform vec4 OLD_cGlossy_ImageLerp;
 //!! No value is under 0.02
 //!! Non-metals value are un-intuitively low: 0.02-0.08
 //!! Gemstones are 0.05-0.17
 //!! Metals have high specular reflectance: 0.5-1.0
 
-uniform float alphaTestValue;
+uniform float OLD_alphaTestValue;
 
 out vec4 color;
 
@@ -306,6 +317,7 @@ out vec2 tex03_gs;
 out vec3 worldPos_gs;
 out vec3 normal_gs;
 out float gl_ClipDistance[1];
+//out vec3 tablePos_gs;
 flat out uint draw_id_gs;
 
 
@@ -319,6 +331,7 @@ void main()
    tex03_gs = vec2(bulbPos.xy/bulbPos.w);
    worldPos_gs = (objMatrices[draw_id].matWorldView*vec4(vPosition, 1.0)).xyz;
    normal_gs = normalize((objMatrices[draw_id].matWorldViewInverseTranspose* vec4(vNormal, 1) ).xyz);
+   //tablePos_gs = vPosition.xyz;
    //draw_id_gs = gl_DrawIDARB;
    draw_id_gs = draw_id;
 }
@@ -385,6 +398,9 @@ out vec3 worldPos;
 in vec3 normal_gs[];
 out vec3 normal;
 
+//in vec3 tablePos_gs[];
+//out vec3 tablePos;
+
 flat in uint draw_id_gs[];
 flat out uint draw_id_fs;
 
@@ -401,6 +417,7 @@ void main()
       tex03 = tex03_gs[i];
       worldPos = worldPos_gs[i];
       normal = normal_gs[i];
+      //tablePos = tablePos_gs[i];
       draw_id_fs = draw_id_gs[i];
       //Default
       EmitVertex();
@@ -553,12 +570,14 @@ in vec2 tex01;
 in vec2 tex03;
 in vec3 worldPos;
 in vec3 normal;
+//in vec3 tablePos;
 //flat in uint draw_id_fs; // declared above helper functions instead of here
 
 void main() {
     
     // material data
     vec4 pixel = texture(materials[draw_id_fs].texHandle, tex01);
+    //vec4 pixel = texture(Texture0, tex01);
     sampler2D normalMap = materials[draw_id_fs].normalMapHandle;
     //vec4 pixel = vec4(tex01, 0, 1); 
 
@@ -575,8 +594,19 @@ void main() {
     bool is_metal = bool(materials[draw_id_fs].AZDO_is_metal);
     bool doNormalMapping = bool(materials[draw_id_fs].AZDO_doNormalMapping);
 
+    //vec4 lightColor_intensity = materials[draw_id_fs].lightColor_intensity;
+    //vec4 lightColor2_falloff_power = materials[draw_id_fs].lightColor2_falloff_power;
+    //vec4 lightCenter_maxRange = materials[draw_id_fs].lightCenter_maxRange;
+    //bvec2 imageBackglassMode = bvec2(materials[draw_id_fs].imageBackglassMode_hdrTexture0_isLight.xy); 
 
-    // OLD
+    //bool hdrTexture0 = bool(materials[draw_id_fs].imageBackglassMode_hdrTexture0_isLight.z);
+    //bool isLight = bool(materials[draw_id_fs].imageBackglassMode_hdrTexture0_isLight.w);
+
+
+   
+   
+   
+   // OLD
    //vec4 pixel = texture(Texture0, tex01);
 
 
@@ -584,7 +614,9 @@ void main() {
    if (pixel.a <= alphaTestValue)
       discard;           //stop the pixel shader if alpha test should reject pixel
 
+   // sRGB -> Linear color space. Lighting calcs should be done in Linear space
    vec3 t = InvGamma(pixel.xyz);
+   
 
    vec3 diffuse  = t*cBase_Alpha.xyz;
    vec3 glossy   = is_metal ? diffuse : (t*cGlossy_ImageLerp.w + (1.0-cGlossy_ImageLerp.w))*cGlossy_ImageLerp.xyz*0.08; //!! use AO for glossy? specular?
@@ -621,7 +653,7 @@ void main() {
    //color = vec4(pixel.xyz, 0.9);
    //color = vec4(pixel2.xyz, 0.9);
 
-   //color.xyz = pixel.xyz;
+
 }
 
 ////ps_main_depth_only_without_texture

@@ -804,12 +804,12 @@ void RenderDevice::CreateDevice(int &refreshrate, UINT adapterIndex)
 
    //SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
-#ifdef _DEBUG
+//#ifdef _DEBUG
 // Request a debug context.
-  // SDL_GL_SetAttribute(
-   //    SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG
-  // );
-#endif
+   SDL_GL_SetAttribute(
+       SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG
+   );
+//#endif
 
    int disp_x, disp_y, disp_w, disp_h;
    getDisplaySetupByID(m_adapter, disp_x, disp_y, disp_w, disp_h);
@@ -842,8 +842,8 @@ void RenderDevice::CreateDevice(int &refreshrate, UINT adapterIndex)
       exit(-1);
    }
 
-#ifdef _DEBUG
-   gladInstallGLDebug();
+//#ifdef _DEBUG
+   //gladInstallGLDebug();
 
    if (GLAD_GL_KHR_debug) {
        char str[256];
@@ -871,10 +871,10 @@ void RenderDevice::CreateDevice(int &refreshrate, UINT adapterIndex)
    );
 
 
-#else
+//#else
 
    gladUninstallGLDebug();
-#endif
+//#endif
 
 
 
@@ -2742,7 +2742,6 @@ void RenderDevice::DrawPrimitiveVB(const PrimitveTypes type, const DWORD fvf, Ve
 {
    const unsigned int np = ComputePrimitiveCount(type, vertexCount);
    m_stats_drawn_triangles += np;
-
    vb->bind();
 #ifdef ENABLE_SDL
    //CHECKD3D(glDrawArraysInstanced(type, vb->getOffset() + startVertex, vertexCount, m_stereo3D != STEREO_OFF ? 2 : 1)); // Do instancing in geometry shader instead

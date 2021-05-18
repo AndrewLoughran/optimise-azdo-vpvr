@@ -333,21 +333,22 @@ private:
    char technique[256];
 #endif
    static Matrix3D mWorld, mView, mProj[2];
-   static int lastShaderProgram;
+   //static int lastShaderProgram;
    static D3DTexture* noTexture;
    static D3DTexture* noTextureMSAA;
    static float* zeroData;
    
-   static int nextTextureSlot;
+   //static int nextTextureSlot;
    static int* textureSlotList;
    static std::map<int, int> slotTextureList;
    static int maxSlots;
 public:
    void setAttributeFormat(DWORD fvf);
-   void BeginMulti(GLuint* debugTex);
    void BeginMulti();
    static std::string shaderPath;
    static std::string Defines;
+   static int lastShaderProgram;
+   static int nextTextureSlot;
    glShader* m_currentTechnique;
    static void setTextureDirty(int TextureID);
 #else
