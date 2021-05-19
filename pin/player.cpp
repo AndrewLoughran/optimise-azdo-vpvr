@@ -3849,8 +3849,9 @@ void Player::RenderDynamics()
       // g_pplayer->m_pin3d.EnableAlphaBlend(m_d.m_fAddBlend);
   
 
- 
-   glEnable(GL_BLEND);
+   glEnable(GL_DEPTH_TEST);
+   glDepthMask(GL_TRUE);
+   glDisable(GL_BLEND);
    //glDepthMask(GL_TRUE);
    //glEnable(GL_DEPTH_TEST);
    //glDisable(GL_CULL_FACE);
@@ -4026,18 +4027,26 @@ void Player::RenderDynamics()
    //glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, 0, ACTUAL_DRAWS, 0);
    glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, 0, NON_TRANS_COUNT, 0);
    glBindVertexArray(0);
+
+   Shader::lastShaderProgram = 96;
+   Shader::nextTextureSlot = 0;
+   VertexBuffer::m_curVertexBuffer = nullptr;
    // new old render toggle, RenderStatic() probably in wrong place
    static bool drawOldRenderCodeObjects = true;
 
    if (drawOldRenderCodeObjects) {
+
+       // eItemLightSeq has no valid RenderStatic/Dynamic
+
        for (size_t i = 0; i < m_ptable->m_vedit.size(); i++)
        {
            if (m_ptable->m_vedit[i]->GetItemType() != eItemDecal)
            {
                Hitable* const ph = m_ptable->m_vedit[i]->GetIHitable();
                if (ph && (ph->HitableGetItemType() != eItemBumper && ph->HitableGetItemType() != eItemPrimitive && ph->HitableGetItemType() != eItemSurface))
+               //if(ph->HitableGetItemType() == eItemFlasher || ph->HitableGetItemType() == eItemLight)
                {
-                   //ph->RenderStatic();
+                  ph->RenderStatic();
                }
            }
        }
@@ -4049,9 +4058,9 @@ void Player::RenderDynamics()
            if (m_ptable->m_vedit[i]->GetItemType() == eItemDecal)
            {
                Hitable* const ph = m_ptable->m_vedit[i]->GetIHitable();
-               if (ph)
-               {
-                   //ph->RenderStatic();
+               //if (ph->HitableGetItemType() == eItemFlasher || ph->HitableGetItemType() == eItemLight) {
+               if (ph && (ph->HitableGetItemType() != eItemBumper && ph->HitableGetItemType() != eItemPrimitive && ph->HitableGetItemType() != eItemSurface)){
+                   ph->RenderStatic();
                }
            }
        }
@@ -4063,10 +4072,13 @@ void Player::RenderDynamics()
            if (!m_vHitNonTrans[i]->IsDMD()) {
                //TracyGpuZone("NonTrans->RenderDynamic");
                if (m_vHitNonTrans[i]->HitableGetItemType() != eItemBumper && m_vHitNonTrans[i]->HitableGetItemType() != eItemPrimitive && m_vHitNonTrans[i]->HitableGetItemType() != eItemSurface) {
-                   //m_vHitNonTrans[i]->RenderDynamic();
+               //if (m_vHitNonTrans[i]->HitableGetItemType() == eItemFlasher || m_vHitNonTrans[i]->HitableGetItemType() == eItemLight || m_vHitNonTrans[i]->HitableGetItemType() == eItemTextbox) {
+                   m_vHitNonTrans[i]->RenderDynamic();
                }
            }
        }
+       glEnable(GL_BLEND);
+
        m_dmdstate = 2;
        // Draw non-transparent DMD's
        for (size_t i = 0; i < m_vHitNonTrans.size(); ++i) {
@@ -4078,10 +4090,14 @@ void Player::RenderDynamics()
        }
    }
 
+   // only for IDE shortcut
+   //InitStatic();
 
    DrawBalls();
 
    DrawBulbLightBuffer(); // sets shader uniform 'Texture3'
+
+   glEnable(GL_BLEND);
 
    if (drawOldRenderCodeObjects) {
        m_dmdstate = 0;
@@ -4089,16 +4105,18 @@ void Player::RenderDynamics()
        for (size_t i = 0; i < m_vHitTrans.size(); ++i) {
            if (!m_vHitTrans[i]->IsDMD()) {
                if (m_vHitTrans[i]->HitableGetItemType() != eItemBumper && m_vHitTrans[i]->HitableGetItemType() != eItemPrimitive && m_vHitTrans[i]->HitableGetItemType() != eItemSurface) {
-                   //m_vHitTrans[i]->RenderDynamic();
+               //if (m_vHitTrans[i]->HitableGetItemType() == eItemFlasher && m_vHitTrans[i]->HitableGetItemType() == eItemLight ) {
+                   m_vHitTrans[i]->RenderDynamic();
                }
            }
        }
+
        m_dmdstate = 1;
        // Draw only transparent DMD's
        for (size_t i = 0; i < m_vHitNonTrans.size(); ++i) {//!! is NonTrans correct or rather Trans????
            if (m_vHitNonTrans.at(i)->IsDMD()) {
                if (m_vHitNonTrans[i]->HitableGetItemType() != eItemBumper && m_vHitNonTrans[i]->HitableGetItemType() != eItemPrimitive && m_vHitNonTrans[i]->HitableGetItemType() != eItemSurface) {
-                  m_vHitNonTrans.at(i)->RenderDynamic();
+                   m_vHitNonTrans.at(i)->RenderDynamic();
                }
            }
        }
@@ -4115,8 +4133,7 @@ void Player::RenderDynamics()
    // without doing this then PostProcess() will throw an error about no VAO being bound for a call to DrawArrays(). This error was masked by not unbinding our own VAOs after each MultiDrawElementsIndirect call. This led to a tricky black screen unless ONE call from the old render code was made.
    VertexBuffer::m_curVertexBuffer = nullptr;
    
-   glEnable(GL_DEPTH_TEST);
-   glDepthMask(GL_TRUE);
+
 
 
 
