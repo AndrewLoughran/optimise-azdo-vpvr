@@ -4099,39 +4099,7 @@ void Player::RenderDynamics()
 
    glEnable(GL_BLEND);
 
-   if (drawOldRenderCodeObjects) {
-       m_dmdstate = 0;
-       // Draw transparent objects. No DMD's
-       for (size_t i = 0; i < m_vHitTrans.size(); ++i) {
-           if (!m_vHitTrans[i]->IsDMD()) {
-               if (m_vHitTrans[i]->HitableGetItemType() != eItemBumper && m_vHitTrans[i]->HitableGetItemType() != eItemPrimitive && m_vHitTrans[i]->HitableGetItemType() != eItemSurface) {
-               //if (m_vHitTrans[i]->HitableGetItemType() == eItemFlasher && m_vHitTrans[i]->HitableGetItemType() == eItemLight ) {
-                   m_vHitTrans[i]->RenderDynamic();
-               }
-           }
-       }
 
-       m_dmdstate = 1;
-       // Draw only transparent DMD's
-       for (size_t i = 0; i < m_vHitNonTrans.size(); ++i) {//!! is NonTrans correct or rather Trans????
-           if (m_vHitNonTrans.at(i)->IsDMD()) {
-               if (m_vHitNonTrans[i]->HitableGetItemType() != eItemBumper && m_vHitNonTrans[i]->HitableGetItemType() != eItemPrimitive && m_vHitNonTrans[i]->HitableGetItemType() != eItemSurface) {
-                   m_vHitNonTrans.at(i)->RenderDynamic();
-               }
-           }
-       }
-   }
-
-   // sort transparent objects
-   //std::map<
-
- 
-   // sanity change as PostProcess() (incorrectly?) expects some shader to have been set in the old system in RenderDynamics() before hitting it
-   Shader::lastShaderProgram = 96;
-   Shader::nextTextureSlot = 0;
-
-   // without doing this then PostProcess() will throw an error about no VAO being bound for a call to DrawArrays(). This error was masked by not unbinding our own VAOs after each MultiDrawElementsIndirect call. This led to a tricky black screen unless ONE call from the old render code was made.
-   VertexBuffer::m_curVertexBuffer = nullptr;
    
 
 
@@ -4178,6 +4146,49 @@ void Player::RenderDynamics()
    // transparent objects
    glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT,(void*) (NON_TRANS_COUNT * sizeof(Hitable::DrawElementsIndirectCommand)), TRANS_COUNT, 0);
    glBindVertexArray(0);
+
+
+
+
+
+
+
+   if (drawOldRenderCodeObjects) {
+       m_dmdstate = 0;
+       // Draw transparent objects. No DMD's
+       for (size_t i = 0; i < m_vHitTrans.size(); ++i) {
+           if (!m_vHitTrans[i]->IsDMD()) {
+               if (m_vHitTrans[i]->HitableGetItemType() != eItemBumper && m_vHitTrans[i]->HitableGetItemType() != eItemPrimitive && m_vHitTrans[i]->HitableGetItemType() != eItemSurface) {
+                   //if (m_vHitTrans[i]->HitableGetItemType() == eItemFlasher && m_vHitTrans[i]->HitableGetItemType() == eItemLight ) {
+                   m_vHitTrans[i]->RenderDynamic();
+               }
+           }
+       }
+
+       m_dmdstate = 1;
+       // Draw only transparent DMD's
+       for (size_t i = 0; i < m_vHitNonTrans.size(); ++i) {//!! is NonTrans correct or rather Trans????
+           if (m_vHitNonTrans.at(i)->IsDMD()) {
+               if (m_vHitNonTrans[i]->HitableGetItemType() != eItemBumper && m_vHitNonTrans[i]->HitableGetItemType() != eItemPrimitive && m_vHitNonTrans[i]->HitableGetItemType() != eItemSurface) {
+                   m_vHitNonTrans.at(i)->RenderDynamic();
+               }
+           }
+       }
+   }
+
+   // sort transparent objects
+   //std::map<
+
+
+   // sanity change as PostProcess() (incorrectly?) expects some shader to have been set in the old system in RenderDynamics() before hitting it
+   Shader::lastShaderProgram = 96;
+   Shader::nextTextureSlot = 0;
+
+   // without doing this then PostProcess() will throw an error about no VAO being bound for a call to DrawArrays(). This error was masked by not unbinding our own VAOs after each MultiDrawElementsIndirect call. This led to a tricky black screen unless ONE call from the old render code was made.
+   VertexBuffer::m_curVertexBuffer = nullptr;
+
+
+
 
    /*
    int x = m_ptable->m_vedit.size();

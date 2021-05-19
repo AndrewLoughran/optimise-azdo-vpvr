@@ -260,11 +260,11 @@ void Hitable::PrepareMultiDraw(std::vector<DrawElementsIndirectCommand>* m_comma
 
         if (mat) {
 
-            shaderMat.texHandle = glGetTextureHandleARB(texName);
-            shaderMat.paddingHandle = 0;
+            //shaderMat.texHandle = glGetTextureHandleARB(texName);
+            //shaderMat.paddingHandle = 0;
 
             shaderMat.AZDO_alphaTestValue = (1.0 / 255.0); // correct for bumpers for now
-            shaderMat.padding1 = 0.0f;
+            //shaderMat.padding1 = 0.0f;
 
             // /*
             const vec4 cClearcoatF = convertColor(mat->m_cClearcoat, mat->m_fEdgeAlpha);
@@ -335,8 +335,9 @@ void Hitable::PrepareMultiDraw(std::vector<DrawElementsIndirectCommand>* m_comma
         */
 
         glMakeTextureHandleResidentARB(shaderMat.texHandle); // remember to make unresident on app shutdown
-        if (normalMap != nullptr) glMakeTextureHandleResidentARB(shaderMat.normalMapHandle); // remember to make unresident on app shutdown
-
+        if (normalMap != nullptr) {
+            glMakeTextureHandleResidentARB(shaderMat.normalMapHandle); // remember to make unresident on app shutdown
+        }
         _allMaterials->push_back(shaderMat);
 
         BindlessTexture bTex = { 0,0 };
